@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "note": "DEV smoke manifest - replace with real photos",
+    "target_n": "25-40"
+  },
+  "items": [
+    {
+      "id": "img_001",
+      "path": "photos/smoke_menu.jpg",
+      "category": "restaurant_menu",
+      "question": "What is the price of a matcha?",
+      "ground_truth": "$5.50",
+      "difficulty": "easy",
+      "conditions": [
+        "clean"
+      ],
+      "notes": "dev"
+    },
+    {
+      "id": "img_002",
+      "path": "photos/smoke_menu_angled.jpg",
+      "category": "restaurant_menu",
+      "question": "What time does the cafe open on weekdays?",
+      "ground_truth": "7am",
+      "difficulty": "medium",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "dev"
+    }
+  ]
+}
