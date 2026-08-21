@@ -1,0 +1,13 @@
+# large model weights
+model/*.gguf
+.cache/
+.venv/
+.deps/
+# eval photos are large-ish; keep manifest, ignore raw originals
+eval/photos/*
+!eval/photos/.gitkeep
+# results are generated
+results/
+__pycache__/
+*.pyc
+.DS_Store
