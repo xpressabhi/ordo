@@ -1,32 +1,227 @@
 {
   "meta": {
-    "note": "DEV smoke manifest - replace with real photos",
-    "target_n": "25-40"
+    "status": "DRAFT - ground truths pending human verification",
+    "device": "iPhone 14 (A15)",
+    "target_n": "25-40",
+    "source": "model-assisted draft, verify before use"
   },
   "items": [
     {
       "id": "img_001",
-      "path": "photos/smoke_menu.jpg",
-      "category": "restaurant_menu",
-      "question": "What is the price of a matcha?",
-      "ground_truth": "$5.50",
+      "path": "photos/IMG_4950.jpg",
+      "category": "product_label",
+      "question": "What does the label on the container say?",
+      "ground_truth": "JIGSAW PUZZLE",
       "difficulty": "easy",
       "conditions": [
         "clean"
       ],
-      "notes": "dev"
+      "notes": "DRAFT - ground truth must be verified against the photo"
     },
     {
       "id": "img_002",
-      "path": "photos/smoke_menu_angled.jpg",
-      "category": "restaurant_menu",
-      "question": "What time does the cafe open on weekdays?",
-      "ground_truth": "7am",
+      "path": "photos/IMG_4951.jpg",
+      "category": "product_label",
+      "question": "What does the warning label say about the child?",
+      "ground_truth": "Never leave the child",
+      "difficulty": "medium",
+      "conditions": [
+        "small_text",
+        "multilingual"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_003",
+      "path": "photos/IMG_4952.jpg",
+      "category": "product_label",
+      "question": "What text is written on the magnet?",
+      "ground_truth": "I Manali",
+      "difficulty": "hard",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_004",
+      "path": "photos/IMG_4953.jpg",
+      "category": "appliance_display",
+      "question": "What does the logo on the refrigerator say?",
+      "ground_truth": "6th Sense ActiveFresh",
+      "difficulty": "medium",
+      "conditions": [
+        "glare"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_005",
+      "path": "photos/IMG_4954.jpg",
+      "category": "handwriting",
+      "question": "What is written on the handwritten note?",
+      "ground_truth": "daily routine schedule",
+      "difficulty": "hard",
+      "conditions": [
+        "handwriting"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_006",
+      "path": "photos/IMG_4955.jpg",
+      "category": "street_sign",
+      "question": "What does the poster say?",
+      "ground_truth": "MOTIVATION",
       "difficulty": "medium",
       "conditions": [
         "small_text"
       ],
-      "notes": "dev"
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_007",
+      "path": "photos/IMG_4956.jpg",
+      "category": "whiteboard",
+      "question": "What language is the document on the screen written in?",
+      "ground_truth": "Chinese and English",
+      "difficulty": "hard",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_008",
+      "path": "photos/IMG_4957.jpg",
+      "category": "book_spine",
+      "question": "Name one book title visible on the shelf.",
+      "ground_truth": "The Lean Startup",
+      "difficulty": "easy",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_009",
+      "path": "photos/IMG_4958.jpg",
+      "category": "product_label",
+      "question": "What type of glass is on the label?",
+      "ground_truth": "1 MM GREY TINT",
+      "difficulty": "medium",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_010",
+      "path": "photos/IMG_4959.jpg",
+      "category": "product_label",
+      "question": "Who is the manufacturer on the label?",
+      "ground_truth": "Brainbees Solutions Pvt. Ltd",
+      "difficulty": "easy",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_011",
+      "path": "photos/IMG_4960.jpg",
+      "category": "product_label",
+      "question": "What is the size of the Palmolive hand wash?",
+      "ground_truth": "250ml",
+      "difficulty": "easy",
+      "conditions": [
+        "clean"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_012",
+      "path": "photos/IMG_4961.jpg",
+      "category": "appliance_display",
+      "question": "What is the first video in Up Next?",
+      "ground_truth": "MAIZEN JJ and JJ Sister School Challenge Minecraft",
+      "difficulty": "hard",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_013",
+      "path": "photos/IMG_4962.jpg",
+      "category": "product_label",
+      "question": "What is the net quantity of the adhesive?",
+      "ground_truth": "120 grams",
+      "difficulty": "medium",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_014",
+      "path": "photos/IMG_4963.jpg",
+      "category": "product_label",
+      "question": "What is the product name on the bottle?",
+      "ground_truth": "WHITE ADHESIVE",
+      "difficulty": "medium",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_015",
+      "path": "photos/IMG_4964.jpg",
+      "category": "book_spine",
+      "question": "What is the title of the book?",
+      "ground_truth": "The Animal Kingdom",
+      "difficulty": "easy",
+      "conditions": [
+        "clean"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_016",
+      "path": "photos/IMG_4965.jpg",
+      "category": "book_spine",
+      "question": "Name one festival mentioned on the page.",
+      "ground_truth": "Diwali",
+      "difficulty": "easy",
+      "conditions": [
+        "clean"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_017",
+      "path": "photos/IMG_4966.jpg",
+      "category": "product_label",
+      "question": "What brand is on the eraser?",
+      "ground_truth": "Apsara",
+      "difficulty": "hard",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_018",
+      "path": "photos/IMG_4967.jpg",
+      "category": "product_label",
+      "question": "What material is the tray made from?",
+      "ground_truth": "100% virgin and food-grade material",
+      "difficulty": "hard",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - ground truth must be verified against the photo"
     }
   ]
 }

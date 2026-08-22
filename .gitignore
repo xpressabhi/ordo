@@ -11,3 +11,9 @@ results/
 __pycache__/
 *.pyc
 .DS_Store
+.env
+lora/mlx-model/
+lora/adapters/
+lora/merged/
+lora/hf-merged/
+lora/data/

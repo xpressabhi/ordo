@@ -152,14 +152,18 @@ actor MtmdContext {
         let chunks = mtmd_input_chunks_init()
         defer { mtmd_input_chunks_free(chunks) }
         var text = mtmd_input_text()
-        formatted.withCString { fptr in
+        try formatted.withCString { fptr in
             text.text = fptr
             text.text_len = formatted.utf8.count
             text.add_special = true
             text.parse_special = true
             var bm: [OpaquePointer?] = [bitmap]
-            let res = mtmd_tokenize(v, chunks, &text, &bm, 1)
-            if res != 0 { throw MtmdError.tokenizeFailed(res) }
+            do {
+                let res = try mtmd_tokenize(v, chunks, &text, &bm, 1)
+                if res != 0 { throw MtmdError.tokenizeFailed(res) }
+            } catch {
+                throw MtmdError.tokenizeFailed(-1)
+            }
         }
 
         var encodeSum: Int64 = 0
