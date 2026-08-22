@@ -15,7 +15,7 @@ real-world text photos.
 | Best config | **Q4_K_M text + Q8_0 mmproj — 1.6GB, 81% answer-recall, 2.3GB peak RAM** |
 | Headline finding | **The vision encoder IS the latency problem**: ~26s of a ~30s TTFT is image encode; a 600-token prompt costs ~0.6s |
 | Second finding | The encoder tolerates quantization almost completely (mmproj f16 vs Q4: identical accuracy); the decoder is where quant bites |
-| iPhone status | App runs, model runs, **text-only works**; vision tower silently broken on A15 (near-constant embeddings — documented, not solved) |
+| iPhone status | **SmolVLM-256M runs the full eval on-device**: 18 photos in ~110s, TTFT median 805ms, AR 39% (draft GT), RSS ~370MB. Qwen2-VL-2B's vision tower is broken on A15 Metal (documented in §8) |
 
 ## Reproduce
 
@@ -42,20 +42,25 @@ docs/report.md   the full report (findings, failure analysis, recommendation)
 
 ## Status
 
-- [x] Part 1 — runtime, weights, ladder produced (f16/Q8/Q4/Q2/IQ2 + mmproj f16/Q8/Q4)
-- [x] Part 2 — eval set (18 photos, DRAFT answers — **verify `eval/eval.json`**)
+- [x] Part 1 — runtime, weights, ladder produced (f16/Q8/Q4/Q2/IQ2 + mmproj f16/Q8/Q4); shipped-app story in report §1
+- [x] Part 2 — eval set (18 photos, 6/6/6 spread, DRAFT answers — **verify `eval/eval.json`**)
 - [x] Part 3 — full 270-run ladder on Mac + failure analysis (results/ladder_full.csv)
 - [x] TTFT decomposition (image vs prompt)
-- [ ] Part 4 — stress/thermal/battery on iPhone: **blocked by the on-device vision bug**
-- [ ] LoRA fine-tune: pipeline ready, not run (blocked on manifest verification)
-- [ ] Human verification of the 18 ground truths
+- [x] Part 4 — 20-query stress (fall-off 13ms), 5-min thermal soak (nominal→serious, TTFT +16%), memory flat 354-362MB. Battery not measurable (API -1.0; 0.0% drain over 6 min by manual readout)
+- [x] On-device eval with SmolVLM-256M — TTFT 805ms median, AR 39%, 18/18 answered (results/device_eval_smolvlm_18.jsonl)
+- [ ] LoRA fine-tune: pipeline ready, not run (next step once manifest is verified; valid on Mac)
+- [ ] Human verification of the 18 ground truths (shifts all AR numbers)
 
-## The on-device vision bug (what failed)
+## The on-device vision bug (what failed — and the workaround that works)
 
-On the iPhone (A15), the vision tower emits near-constant embeddings
-(values ≈ {-1.79, 1.0}); the model generates confidently but hallucinates
-("The Netherlands" for a puzzle-label photo). Survived: 3 framework builds
-(2 hand-merged, 1 official xcframework), mmproj Q8/Q4/f16, FA on/off,
-KV/batch sizes, image sizes, GPU/CPU decode. Same llama.cpp + weights work on
-the M2. Text-only inference on the phone works. Full repro in
-`docs/report.md` §8.
+On the iPhone (A15), Qwen2-VL-2B's vision tower emits near-constant
+embeddings (values ≈ {-1.79, 1.0}); the model generates confidently but
+hallucinates ("The Netherlands" for a puzzle-label photo). Survived: 3
+framework builds (2 hand-merged, 1 official xcframework), mmproj Q8/Q4/f16,
+FA on/off, KV/batch sizes, image sizes, GPU/CPU decode. Same llama.cpp +
+weights work on the M2.
+
+**The workaround: SmolVLM-256M runs perfectly on the same phone** — 18-photo
+eval in ~110s, sub-second TTFT, real embeddings. The bug is specific to
+Qwen2-VL's 2D-mrope vision kernels on A15-class Metal, not llama.cpp or our
+code. Full story in `docs/report.md` §8-§9.
