@@ -36,7 +36,7 @@ class BenchmarkEngine: ObservableObject {
             ?? documentsDir.appendingPathComponent(rel)
     }
 
-    private func appendDiag(_ text: String) {
+    func appendDiag(_ text: String) {
         let url = documentsDir.appendingPathComponent("diag.txt")
         if let h = try? FileHandle(forWritingTo: url) {
             h.seekToEndOfFile()

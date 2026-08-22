@@ -55,6 +55,7 @@ struct ContentView: View {
             .padding(.vertical)
             .onAppear {
                 let args = ProcessInfo.processInfo.arguments
+                engine.appendDiag("LAUNCH args: \(args)")
                 if args.contains("-autorun-text") || args.contains("autorun-text") {
                     Task { await engine.autoRunTextOnly() }
                 } else if args.contains("-autorun-stress") || args.contains("autorun-stress") {
