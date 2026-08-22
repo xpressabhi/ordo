@@ -36,6 +36,17 @@ class BenchmarkEngine: ObservableObject {
             ?? documentsDir.appendingPathComponent(rel)
     }
 
+    private func appendDiag(_ text: String) {
+        let url = documentsDir.appendingPathComponent("diag.txt")
+        if let h = try? FileHandle(forWritingTo: url) {
+            h.seekToEndOfFile()
+            h.write((text + "\n").data(using: .utf8)!)
+            try? h.close()
+        } else {
+            try? (text + "\n").write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+
     private func appendIncremental(_ line: String) {
         let url = documentsDir.appendingPathComponent("results.jsonl")
         if let h = try? FileHandle(forWritingTo: url) {
@@ -58,12 +69,14 @@ class BenchmarkEngine: ObservableObject {
 
     // ---- load ----------------------------------------------------------------
     func findModelFiles() -> (model: String, mmproj: String)? {
-        // 1. bundled resources (installed with the app)
-        if let m = Bundle.main.url(forResource: "Qwen2-VL-2B-Instruct-Q4_K_M", withExtension: "gguf", subdirectory: "model_data") {
-            let mm = Bundle.main.url(forResource: "mmproj-Qwen2-VL-2B-Instruct-f16", withExtension: "gguf", subdirectory: "model_data")
-                ?? Bundle.main.url(forResource: "mmproj-Qwen2-VL-2B-Instruct-Q4_K_M", withExtension: "gguf", subdirectory: "model_data")
-                ?? Bundle.main.url(forResource: "mmproj-Qwen2-VL-2B-Instruct-Q8_0", withExtension: "gguf", subdirectory: "model_data")
-            if let mm { return (m.path, mm.path) }
+        // 1. bundled resources (installed with the app): any model + mmproj pair
+        if let res = Bundle.main.resourceURL {
+            let md = res.appendingPathComponent("model_data")
+            let files = (try? FileManager.default.contentsOfDirectory(at: md, includingPropertiesForKeys: nil)) ?? []
+            let gguFs = files.filter { $0.pathExtension == "gguf" }
+            let mm = gguFs.first { $0.lastPathComponent.contains("mmproj") }
+            let model = gguFs.first { !$0.lastPathComponent.contains("mmproj") }
+            if let mm, let model { return (model.path, mm.path) }
         }
         // 2. Documents (dropped in via Finder/Files)
         let docs = try? FileManager.default.contentsOfDirectory(at: documentsDir, includingPropertiesForKeys: nil)
@@ -154,6 +167,7 @@ class BenchmarkEngine: ObservableObject {
         isRunning = true
         results = []
         try? FileManager.default.removeItem(at: documentsDir.appendingPathComponent("results.jsonl"))
+        try? FileManager.default.removeItem(at: documentsDir.appendingPathComponent("diag.txt"))
         Task {
             let t0 = Date()
             logMsg("== Eval set run ==")
@@ -172,6 +186,7 @@ class BenchmarkEngine: ObservableObject {
                 guard let res = await askOnce(imagePath: imgURL.path, prompt: q) else { continue }
                 results.append(res.toJSON())
                 appendIncremental(res.toJSON())
+                appendDiag("\(rel) | \(res.debug)")
                 logMsg("  enc=\(res.encodeMs)ms pre=\(res.prefillMs)ms dec=\(res.decodeMs)ms ttft=\(res.ttftMs)ms | \(res.output.prefix(60)) | \(res.debug)")
             }
             let dt = Date().timeIntervalSince(t0)

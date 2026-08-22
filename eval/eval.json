@@ -1,14 +1,12 @@
 {
   "meta": {
-    "status": "DRAFT - ground truths pending human verification",
-    "device": "iPhone 14 (A15)",
-    "target_n": "25-40",
-    "source": "model-assisted draft, verify before use"
+    "status": "18-image SmolVLM on-device set",
+    "source": "draft manifest, paths -> photos_tiny"
   },
   "items": [
     {
       "id": "img_001",
-      "path": "photos/IMG_4950.jpg",
+      "path": "photos_tiny/IMG_4950.jpg",
       "category": "product_label",
       "question": "What does the label on the container say?",
       "ground_truth": "JIGSAW PUZZLE",
@@ -20,7 +18,7 @@
     },
     {
       "id": "img_002",
-      "path": "photos/IMG_4951.jpg",
+      "path": "photos_tiny/IMG_4951.jpg",
       "category": "product_label",
       "question": "What does the warning label say about the child?",
       "ground_truth": "Never leave the child",
@@ -33,7 +31,7 @@
     },
     {
       "id": "img_003",
-      "path": "photos/IMG_4952.jpg",
+      "path": "photos_tiny/IMG_4952.jpg",
       "category": "product_label",
       "question": "What text is written on the magnet?",
       "ground_truth": "I Manali",
@@ -45,7 +43,7 @@
     },
     {
       "id": "img_004",
-      "path": "photos/IMG_4953.jpg",
+      "path": "photos_tiny/IMG_4953.jpg",
       "category": "appliance_display",
       "question": "What does the logo on the refrigerator say?",
       "ground_truth": "6th Sense ActiveFresh",
@@ -57,7 +55,7 @@
     },
     {
       "id": "img_005",
-      "path": "photos/IMG_4954.jpg",
+      "path": "photos_tiny/IMG_4954.jpg",
       "category": "handwriting",
       "question": "What is written on the handwritten note?",
       "ground_truth": "daily routine schedule",
@@ -69,7 +67,7 @@
     },
     {
       "id": "img_006",
-      "path": "photos/IMG_4955.jpg",
+      "path": "photos_tiny/IMG_4955.jpg",
       "category": "street_sign",
       "question": "What does the poster say?",
       "ground_truth": "MOTIVATION",
@@ -81,7 +79,7 @@
     },
     {
       "id": "img_007",
-      "path": "photos/IMG_4956.jpg",
+      "path": "photos_tiny/IMG_4956.jpg",
       "category": "whiteboard",
       "question": "What language is the document on the screen written in?",
       "ground_truth": "Chinese and English",
@@ -93,7 +91,7 @@
     },
     {
       "id": "img_008",
-      "path": "photos/IMG_4957.jpg",
+      "path": "photos_tiny/IMG_4957.jpg",
       "category": "book_spine",
       "question": "Name one book title visible on the shelf.",
       "ground_truth": "The Lean Startup",
@@ -105,7 +103,7 @@
     },
     {
       "id": "img_009",
-      "path": "photos/IMG_4958.jpg",
+      "path": "photos_tiny/IMG_4958.jpg",
       "category": "product_label",
       "question": "What type of glass is on the label?",
       "ground_truth": "1 MM GREY TINT",
@@ -117,7 +115,7 @@
     },
     {
       "id": "img_010",
-      "path": "photos/IMG_4959.jpg",
+      "path": "photos_tiny/IMG_4959.jpg",
       "category": "product_label",
       "question": "Who is the manufacturer on the label?",
       "ground_truth": "Brainbees Solutions Pvt. Ltd",
@@ -129,7 +127,7 @@
     },
     {
       "id": "img_011",
-      "path": "photos/IMG_4960.jpg",
+      "path": "photos_tiny/IMG_4960.jpg",
       "category": "product_label",
       "question": "What is the size of the Palmolive hand wash?",
       "ground_truth": "250ml",
@@ -141,7 +139,7 @@
     },
     {
       "id": "img_012",
-      "path": "photos/IMG_4961.jpg",
+      "path": "photos_tiny/IMG_4961.jpg",
       "category": "appliance_display",
       "question": "What is the first video in Up Next?",
       "ground_truth": "MAIZEN JJ and JJ Sister School Challenge Minecraft",
@@ -153,7 +151,7 @@
     },
     {
       "id": "img_013",
-      "path": "photos/IMG_4962.jpg",
+      "path": "photos_tiny/IMG_4962.jpg",
       "category": "product_label",
       "question": "What is the net quantity of the adhesive?",
       "ground_truth": "120 grams",
@@ -165,7 +163,7 @@
     },
     {
       "id": "img_014",
-      "path": "photos/IMG_4963.jpg",
+      "path": "photos_tiny/IMG_4963.jpg",
       "category": "product_label",
       "question": "What is the product name on the bottle?",
       "ground_truth": "WHITE ADHESIVE",
@@ -177,7 +175,7 @@
     },
     {
       "id": "img_015",
-      "path": "photos/IMG_4964.jpg",
+      "path": "photos_tiny/IMG_4964.jpg",
       "category": "book_spine",
       "question": "What is the title of the book?",
       "ground_truth": "The Animal Kingdom",
@@ -189,7 +187,7 @@
     },
     {
       "id": "img_016",
-      "path": "photos/IMG_4965.jpg",
+      "path": "photos_tiny/IMG_4965.jpg",
       "category": "book_spine",
       "question": "Name one festival mentioned on the page.",
       "ground_truth": "Diwali",
@@ -201,7 +199,7 @@
     },
     {
       "id": "img_017",
-      "path": "photos/IMG_4966.jpg",
+      "path": "photos_tiny/IMG_4966.jpg",
       "category": "product_label",
       "question": "What brand is on the eraser?",
       "ground_truth": "Apsara",
@@ -213,7 +211,7 @@
     },
     {
       "id": "img_018",
-      "path": "photos/IMG_4967.jpg",
+      "path": "photos_tiny/IMG_4967.jpg",
       "category": "product_label",
       "question": "What material is the tray made from?",
       "ground_truth": "100% virgin and food-grade material",

@@ -263,8 +263,15 @@ actor MtmdContext {
                 var e16 = ""
                 if let embd {
                     for k in 0..<16 { e16 += String(format: "%.4f ", embd[k]) }
+                    var sum2: Double = 0, n2 = 0
+                    for k in 0..<1536 { let v = Double(embd[k]); sum2 += v; n2 += 1 }
+                    let m2 = sum2 / Double(max(1, n2))
+                    var v2: Double = 0
+                    for k in 0..<1536 { let v = Double(embd[k]); v2 += (v - m2) * (v - m2) }
+                    var spread = ""
+                    for k in stride(from: 0, to: 1536, by: 153) { spread += String(format: "%.3f ", embd[k]) }
+                    lastDebug += " | embed_mean_abs=\(esum / Double(max(1, ecnt))) dim1536_mean=\(String(format: "%.4f", m2)) std=\(String(format: "%.4f", sqrt(v2 / Double(max(1, n2))))) spread=[\(spread)]"
                 }
-                lastDebug += " | embed_mean_abs=\(esum / Double(max(1, ecnt))) first16=[\(e16)]"
                 var newN = nPast
                 let r2 = mtmd_helper_decode_image_chunk(v, c, chunk, embd, nPast, 0, 2048, &newN, nil, nil)
                 if r2 != 0 { lastDebug += " | image_chunk_decode r=\(r2) chunk=\(i) n_past=\(nPast)"; throw MtmdError.decodeFailed(r2) }
