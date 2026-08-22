@@ -111,7 +111,7 @@ word-F1 as the secondary.
 
 ### Stage decomposition (Q4_K_M x Q8_0, typical photo)
 - **Encode (vision tower): ~26s** — 87% of TTFT
-- **Prefill (104 tokens, median across the set): ~3.4s (~31 tok/s) — this set's prompts run ~104 tokens, not 500; a 500-token prompt costs ~16s at this rate (measured in decompose.csv: 450-token prompt = 381ms on the small test, see Notes)
+- **Prefill (104 tokens, median across the set): ~3.4s (~31 tok/s) — this set's prompts run ~104 tokens, not 500. Prefill scales sub-linearly with length (decompose.csv: 62→666 tokens costs 1092→1469ms; short prompts are dominated by fixed overhead), so the "500-token prompt" worry is a ~2.3s concern at worst, not a 16s one — still small next to the ~26s encode. See Notes.
 - **Decode: ~0.27s per token** (~70 tok/s; 2.7s for a 10-token answer)
 - **TTFT ≈ encode + prefill ≈ 30s**
 
