@@ -1,7 +1,7 @@
 # Ordo — take-home: a vision model on a phone
 
 Qwen2-VL-2B on llama.cpp, measured across a quantization ladder on a Mac
-(M2 Pro) and deployed to an iPhone (14 / A15), on a private eval set of 18
+(M2 Pro) and deployed to an iPhone (15 / A16 Bionic), on a private eval set of 18
 real-world text photos.
 
 **Full write-up: `docs/report.md`** — this README is the summary.
@@ -15,7 +15,7 @@ real-world text photos.
 | Best config | **Q4_K_M text + Q8_0 mmproj — 1.6GB, 81% answer-recall, 2.3GB peak RAM** |
 | Headline finding | **The vision encoder IS the latency problem**: ~26s of a ~30s TTFT is image encode; a 600-token prompt costs ~0.6s |
 | Second finding | The encoder tolerates quantization almost completely (mmproj f16 vs Q4: identical accuracy); the decoder is where quant bites |
-| iPhone status | **SmolVLM-256M runs the full eval on-device**: 18 photos in ~110s, TTFT median 805ms, AR 39% (draft GT), RSS ~370MB. Qwen2-VL-2B's vision tower is broken on A15 Metal (documented in §8) |
+| iPhone status | **SmolVLM-256M runs the full eval on-device**: 18 photos in ~110s, TTFT median 805ms, AR 39% (draft GT), RSS ~370MB. Qwen2-VL-2B's vision tower is broken on A16 Metal (documented in §8) |
 
 ## Reproduce
 
@@ -53,7 +53,7 @@ docs/report.md   the full report (findings, failure analysis, recommendation)
 
 ## The on-device vision bug (what failed — and the workaround that works)
 
-On the iPhone (A15), Qwen2-VL-2B's vision tower emits near-constant
+On the iPhone (A16), Qwen2-VL-2B's vision tower emits near-constant
 embeddings (values ≈ {-1.79, 1.0}); the model generates confidently but
 hallucinates ("The Netherlands" for a puzzle-label photo). Survived: 3
 framework builds (2 hand-merged, 1 official xcframework), mmproj Q8/Q4/f16,
@@ -62,5 +62,5 @@ weights work on the M2.
 
 **The workaround: SmolVLM-256M runs perfectly on the same phone** — 18-photo
 eval in ~110s, sub-second TTFT, real embeddings. The bug is specific to
-Qwen2-VL's 2D-mrope vision kernels on A15-class Metal, not llama.cpp or our
+Qwen2-VL's 2D-mrope vision kernels on A16-class Metal, not llama.cpp or our
 code. Full story in `docs/report.md` §8-§9.

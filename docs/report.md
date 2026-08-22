@@ -1,7 +1,7 @@
 # Ordo take-home — full report
 
 Qwen2-VL-2B on llama.cpp: a 2B vision-language model measured across a
-quantization ladder on real hardware (Mac M2 Pro + iPhone 14), on a private
+quantization ladder on real hardware (Mac M2 Pro + iPhone 15), on a private
 eval set of 18 real-world text photos.
 
 ---
@@ -71,7 +71,7 @@ data.
 ## 3. Setup / reproduction
 
 - Mac: Apple M2 Pro, 16GB, macOS 27, llama.cpp b10549 (Metal, MTMD).
-- Phone: iPhone 14 (A15, 6GB), iOS 26.5, signed with a free Apple ID,
+- Phone: iPhone 15 (A16 Bionic, 6GB), iOS 26.5, signed with a free Apple ID,
   QwenBench app (fork of `examples/llama.swiftui` + MTMD vision + benchmark
   harness), model bundled in-app (1.4GB app).
 - `bench/tool/bench_vlm.cpp`: per-stage timer (encode/prefill/decode/TTFT) +
@@ -160,16 +160,16 @@ section.
    plus quantization regularization. Not a claim about Q4 > f16 in general,
    but a reminder that the "ladder" isn't monotonic at this scale.
 4. **The on-device vision tower silently outputs near-constant embeddings on
-   the A15** — the model loads, encodes, prefills, and generates — but the
+   the A16** — the model loads, encodes, prefills, and generates — but the
    image content is unreadable (constant dims ≈ {-1.79, 1.0}); the model
    hallucinates confidently ("The Netherlands"). This survived three framework
    builds, three mmproj quants, FA on/off, KV/batch changes, and CPU/GPU
-   splits. It is a genuine llama.cpp/A15 issue, not a config error — the same
+   splits. It is a genuine llama.cpp/A16 issue, not a config error — the same
    llama.cpp code works on the M2 with identical weights.
 5. **The Swift interop trap** — an un-`strdup`'d `role` field silently turned
    the chat template into an empty prompt; the model EOG'd instantly. The
    failure mode was a *confident* `<|im_end|>`, not an error.
-6. **The A15 bug is architecture-specific, not llama.cpp-wide.** After ~30
+6. **The A16 bug is architecture-specific, not llama.cpp-wide.** After ~30
    debugging iterations on Qwen2-VL's tower, a 256M SmolVLM ran perfectly on
    the same phone in the first attempt. One model's vision tower silently
    collapses to constant embeddings; another's is flawless. Hardware bugs
@@ -179,7 +179,7 @@ section.
 
 ## 8. What I cut / couldn't get working
 
-- **Qwen2-VL-2B vision on the A15**: broken. The vision tower emits
+- **Qwen2-VL-2B vision on the A16**: broken. The vision tower emits
   near-constant embeddings (values clamped to ~{-1.79, 1.0}); the model
   generates confidently but hallucinates ("The Netherlands" for a puzzle
   label). Survived three framework builds, three mmproj quants (Q8/Q4/F16),
@@ -187,7 +187,7 @@ section.
   verified correct (mean 79.7, var 4796). **Same llama.cpp + weights work on
   the M2.** The breakthrough: **SmolVLM-256M's vision works perfectly on the
   same device** (below) — the bug is specific to Qwen2-VL's 2D-mrope vision
-  tower kernels on Apple A15-class Metal, not llama.cpp or our code.
+  tower kernels on Apple A16-class Metal, not llama.cpp or our code.
 - **CPU vision encode on the phone**: hangs (>10 min for one photo) — not a
   usable fallback.
 - **The 18-photo manifest ground truths are DRAFT** — accuracy numbers are
@@ -197,7 +197,7 @@ section.
 
 ## 9. On-device results (the model that actually works: SmolVLM-256M)
 
-After the Qwen2-VL A15 bug was isolated, the eval was re-run on the iPhone 14
+After the Qwen2-VL A16 bug was isolated, the eval was re-run on the iPhone 15
 with **SmolVLM-256M-Instruct (Q8_0, 167MB) + Q8_0 mmproj (99MB)** and the
 eval photos compressed to <100KB each (max 768px, 12-58KB).
 
@@ -233,7 +233,7 @@ items, as expected for a 256M model at 768px.
 | fair (~15-50s) | 12 | 969ms | 778ms | 367MB |
 | serious (t>53s, rest) | 118 | 1074ms | 875ms | 387MB |
 
-The A15 hits "serious" thermal within ~45s of continuous inference and stays
+The A16 hits "serious" thermal within ~45s of continuous inference and stays
 there: **TTFT degrades ~16% (925→1074ms), encode degrades ~18% (742→875ms)** —
 the vision encoder is the thermally-sensitive stage, consistent with encode
 being compute-bound. Decode stays flat. This is the "sustained use" story:
@@ -246,7 +246,7 @@ not continuously).
 
 This is the shipping model for this device class: sub-second TTFT, 370MB
 RAM, 335MB app. The accuracy-vs-latency knob that actually mattered was
-**model architecture** (SmolVLM vs Qwen2-VL on A15), then image resolution,
+**model architecture** (SmolVLM vs Qwen2-VL on A16), then image resolution,
 then quant.
 - **LoRA fine-tune**: pipeline built (MLX conversion done, dataset builder,
   trainer script) but not executed — blocked by the same on-device vision
