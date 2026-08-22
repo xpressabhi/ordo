@@ -1,6 +1,6 @@
 {
   "meta": {
-    "status": "18-image SmolVLM on-device set",
+    "status": "28-image eval set (18 + 10 new), DRAFT ground truths",
     "source": "draft manifest, paths -> photos_tiny"
   },
   "items": [
@@ -220,6 +220,127 @@
         "small_text"
       ],
       "notes": "DRAFT - ground truth must be verified against the photo"
+    },
+    {
+      "id": "img_019",
+      "category": "handwriting",
+      "path": "photos_tiny/IMG_4969.jpg",
+      "question": "What does the handwritten note say?",
+      "ground_truth": "",
+      "difficulty": "hard",
+      "conditions": [
+        "handwriting"
+      ],
+      "notes": "DRAFT - handwritten list on rolled paper; model could not transcribe, GT NEEDS HUMAN"
+    },
+    {
+      "id": "img_020",
+      "category": "appliance_display",
+      "path": "photos_tiny/IMG_4970.jpg",
+      "question": "What is the weather forecast for Hyderabad shown on the laptop screen?",
+      "ground_truth": "Rainy, not as warm tomorrow",
+      "difficulty": "medium",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - screen shows weather + BTC-USD chart, verify exact forecast wording"
+    },
+    {
+      "id": "img_021",
+      "category": "appliance_display",
+      "path": "photos_tiny/IMG_4971.jpg",
+      "question": "What is shown on the laptop screen?",
+      "ground_truth": "A beach scene wallpaper",
+      "difficulty": "easy",
+      "conditions": [
+        "clean"
+      ],
+      "notes": "DRAFT - verify wallpaper content"
+    },
+    {
+      "id": "img_022",
+      "category": "product_label",
+      "path": "photos_tiny/IMG_4972.jpg",
+      "question": "What text is written on the white card?",
+      "ground_truth": "DRISHTI",
+      "difficulty": "easy",
+      "conditions": [
+        "clean"
+      ],
+      "notes": "DRAFT - white card on yellow surface"
+    },
+    {
+      "id": "img_023",
+      "category": "product_label",
+      "path": "photos_tiny/IMG_4973.jpg",
+      "question": "Who is the packers and movers company on the box?",
+      "ground_truth": "AGARWAL PACKERS AND MOVERS LTD",
+      "difficulty": "medium",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - verify exact label wording"
+    },
+    {
+      "id": "img_024",
+      "category": "product_label",
+      "path": "photos_tiny/IMG_4974.jpg",
+      "question": "What contact details are printed on the box label?",
+      "ground_truth": "",
+      "difficulty": "medium",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - phone + website on label, GT NEEDS HUMAN (model saw but did not transcribe digits)"
+    },
+    {
+      "id": "img_025",
+      "category": "product_label",
+      "path": "photos_tiny/IMG_4975.jpg",
+      "question": "How much does the step stool cost?",
+      "ground_truth": "Rs. 199.00",
+      "difficulty": "medium",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - price tag attached to stool, verify amount"
+    },
+    {
+      "id": "img_026",
+      "category": "product_label",
+      "path": "photos_tiny/IMG_4976.jpg",
+      "question": "Which country issued this passport?",
+      "ground_truth": "Republic of India",
+      "difficulty": "easy",
+      "conditions": [
+        "clean"
+      ],
+      "notes": "DRAFT - passport cover, verify"
+    },
+    {
+      "id": "img_027",
+      "category": "handwriting",
+      "path": "photos_tiny/IMG_4977.jpg",
+      "question": "What dental procedure is mentioned in the note?",
+      "ground_truth": "Restoration of Oral Pulpitis",
+      "difficulty": "hard",
+      "conditions": [
+        "handwriting",
+        "small_text"
+      ],
+      "notes": "DRAFT - handwritten clinic note, verify procedure wording"
+    },
+    {
+      "id": "img_028",
+      "category": "handwriting",
+      "path": "photos_tiny/IMG_4978.jpg",
+      "question": "What is the vehicle registration number on the form?",
+      "ground_truth": "TG07AG5205",
+      "difficulty": "medium",
+      "conditions": [
+        "small_text"
+      ],
+      "notes": "DRAFT - printed vehicle up-and-drop form, verify number"
     }
   ]
 }
