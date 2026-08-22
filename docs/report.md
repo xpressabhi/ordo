@@ -222,6 +222,21 @@ items, as expected for a 256M model at 768px.
 - Thermal: steady **fair**; memory: locked at 354-362MB
 - ~48 tokens generated per query, 1.3-1.6s wall each
 
+**Thermal soak (Part 4) — 5 minutes continuous, ~170 queries:**
+| Phase | Samples | TTFT avg | Encode avg | Mem avg |
+|---|---|---|---|---|
+| nominal (~0-45s) | 13 | 925ms | 742ms | 362MB |
+| fair (~15-50s) | 12 | 969ms | 778ms | 367MB |
+| serious (t>53s, rest) | 118 | 1074ms | 875ms | 387MB |
+
+The A15 hits "serious" thermal within ~45s of continuous inference and stays
+there: **TTFT degrades ~16% (925→1074ms), encode degrades ~18% (742→875ms)** —
+the vision encoder is the thermally-sensitive stage, consistent with encode
+being compute-bound. Decode stays flat. This is the "sustained use" story:
+latency is fine cold, creeps up ~150ms when hot, and never recovers while
+busy. A real product would pace the camera feed (e.g., encode at 2-3 fps,
+not continuously).
+
 **Mac cross-check:** the same SmolVLM-256M on the M2 gives the same answers
 ("Jigsaw Puzzle", lean-startup book spine) — the device pipeline is honest.
 
