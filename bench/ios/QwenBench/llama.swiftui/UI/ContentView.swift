@@ -57,6 +57,18 @@ struct ContentView: View {
                 let args = ProcessInfo.processInfo.arguments
                 if args.contains("-autorun-text") || args.contains("autorun-text") {
                     Task { await engine.autoRunTextOnly() }
+                } else if args.contains("-autorun-stress") || args.contains("autorun-stress") {
+                    Task {
+                        engine.loadModel()
+                        for _ in 0..<240 { if engine.isLoaded { break }; try? await Task.sleep(nanoseconds: 500_000_000) }
+                        engine.runStress(iterations: 20)
+                    }
+                } else if args.contains("-autorun-soak") || args.contains("autorun-soak") {
+                    Task {
+                        engine.loadModel()
+                        for _ in 0..<240 { if engine.isLoaded { break }; try? await Task.sleep(nanoseconds: 500_000_000) }
+                        engine.runSoak(minutes: 5)
+                    }
                 } else if args.contains("-autorun") || args.contains("autorun") {
                     Task { await engine.autoRun() }
                 }

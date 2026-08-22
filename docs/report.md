@@ -167,14 +167,68 @@ section.
 5. **The Swift interop trap** — an un-`strdup`'d `role` field silently turned
    the chat template into an empty prompt; the model EOG'd instantly. The
    failure mode was a *confident* `<|im_end|>`, not an error.
+6. **The A15 bug is architecture-specific, not llama.cpp-wide.** After ~30
+   debugging iterations on Qwen2-VL's tower, a 256M SmolVLM ran perfectly on
+   the same phone in the first attempt. One model's vision tower silently
+   collapses to constant embeddings; another's is flawless. Hardware bugs
+   are picky.
 
 ---
 
 ## 8. What I cut / couldn't get working
 
-- **On-device vision (iPhone)**: not working — see above. Text-only inference
-  on-device is fine; vision is not. Documented with full repro; flagged as the
-  "what failed" section this assignment asks for.
+- **Qwen2-VL-2B vision on the A15**: broken. The vision tower emits
+  near-constant embeddings (values clamped to ~{-1.79, 1.0}); the model
+  generates confidently but hallucinates ("The Netherlands" for a puzzle
+  label). Survived three framework builds, three mmproj quants (Q8/Q4/F16),
+  FA on/off, KV/batch sizes, image sizes, GPU/CPU splits — pixel input
+  verified correct (mean 79.7, var 4796). **Same llama.cpp + weights work on
+  the M2.** The breakthrough: **SmolVLM-256M's vision works perfectly on the
+  same device** (below) — the bug is specific to Qwen2-VL's 2D-mrope vision
+  tower kernels on Apple A15-class Metal, not llama.cpp or our code.
+- **CPU vision encode on the phone**: hangs (>10 min for one photo) — not a
+  usable fallback.
+- **The 18-photo manifest ground truths are DRAFT** — accuracy numbers are
+  against model-drafted answers; human verification will shift them.
+
+---
+
+## 9. On-device results (the model that actually works: SmolVLM-256M)
+
+After the Qwen2-VL A15 bug was isolated, the eval was re-run on the iPhone 14
+with **SmolVLM-256M-Instruct (Q8_0, 167MB) + Q8_0 mmproj (99MB)** and the
+eval photos compressed to <100KB each (max 768px, 12-58KB).
+
+**The full 18-photo eval completed on-device in ~110 seconds** — every image
+answered, embeddings real (std ~5-7, varied spread), first token never EOG:
+
+| Metric | Value |
+|---|---|
+| Encode (median) | **753ms** (vs 26s for Qwen2-VL-2B full-res on the M2) |
+| Prefill (median) | 52ms |
+| Decode (median) | 253ms |
+| **TTFT (median)** | **805ms** |
+| Answer recall (18 items, draft GT) | 39% |
+| Peak RSS | ~370MB |
+| App size | 335MB (167MB model + 99MB mmproj bundled) |
+
+Notable reads: "Jigsaw Puzzle" (exact), "'The Lean Startup' by Eric Ries"
+(exact), "The Animal Kingdom" (exact), "120g", "MAIZE: JJ J and JJ Sister
+School..." (≈ground truth). Fails concentrated on glare/small-text/handwriting
+items, as expected for a 256M model at 768px.
+
+**Stress (Part 4) — 20 sequential queries on-device:**
+- TTFT: first=909ms, last=922ms, avg=916ms — **fall-off 13ms; throughput holds**
+- Thermal: steady **fair**; memory: locked at 354-362MB
+- ~48 tokens generated per query, 1.3-1.6s wall each
+
+**Mac cross-check:** the same SmolVLM-256M on the M2 gives the same answers
+("Jigsaw Puzzle", lean-startup book spine) — the device pipeline is honest.
+
+This is the shipping model for this device class: sub-second TTFT, 370MB
+RAM, 335MB app. The accuracy-vs-latency knob that actually mattered was
+**model architecture** (SmolVLM vs Qwen2-VL on A15), then image resolution,
+then quant.
 - **LoRA fine-tune**: pipeline built (MLX conversion done, dataset builder,
   trainer script) but not executed — blocked by the same on-device vision
   issue making the target metric meaningless; on Mac the LoRA eval would be

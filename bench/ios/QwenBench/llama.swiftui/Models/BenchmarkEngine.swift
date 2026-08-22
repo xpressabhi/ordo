@@ -218,7 +218,9 @@ class BenchmarkEngine: ObservableObject {
                 let dt = Date().timeIntervalSince(tq0)
                 let thermal = ProcessInfo.processInfo.thermalState
                 let mem = footprintMB()
-                logMsg("[\(i)/\(iterations)] ttft=\(res.ttftMs)ms wall=\(String(format: "%.1f", dt))s thermal=\(thermalName(thermal)) mem=\(mem)MB dec=\(res.nDecodeToks)tok")
+                let line = "[\(i)/\(iterations)] ttft=\(res.ttftMs)ms wall=\(String(format: "%.1f", dt))s thermal=\(thermalName(thermal)) mem=\(mem)MB dec=\(res.nDecodeToks)tok"
+                logMsg(line)
+                appendDiag(line)
                 try? await Task.sleep(nanoseconds: 500_000_000)
             }
             let total = Date().timeIntervalSince(t0)
@@ -230,7 +232,9 @@ class BenchmarkEngine: ObservableObject {
                 let avg = times.reduce(0, +) / Int64(times.count)
                 let first = times.first ?? 0
                 let last = times.last ?? 0
-                logMsg("TTFT: first=\(first)ms last=\(last)ms avg=\(avg)ms (fall-off: \(last - first)ms)")
+                let sumLine = "TTFT: first=\(first)ms last=\(last)ms avg=\(avg)ms (fall-off: \(last - first)ms)"
+            logMsg(sumLine)
+            appendDiag(sumLine)
             }
             isRunning = false
         }
@@ -257,7 +261,9 @@ class BenchmarkEngine: ObservableObject {
                 let resStr = res.map { "enc=\($0.encodeMs)ms dec=\($0.decodeMs)ms ttft=\($0.ttftMs)ms" } ?? "error"
                 sampleCount += 1
                 if sampleCount % 3 == 0 || thermal == .serious || thermal == .critical {
-                    logMsg("t=\(Int(Date().timeIntervalSince(Date().addingTimeInterval(-Double(minutes * 60))).magnitude))s? | \(resStr) wall=\(String(format: "%.1f", dt))s thermal=\(thermalName(thermal)) mem=\(mem)MB")
+                    let line = "soak t=\(sampleCount) | \(resStr) wall=\(String(format: "%.1f", dt))s thermal=\(thermalName(thermal)) mem=\(mem)MB"
+                    logMsg(line)
+                    appendDiag(line)
                 }
                 try? await Task.sleep(nanoseconds: 300_000_000)
             }
