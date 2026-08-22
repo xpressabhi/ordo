@@ -259,6 +259,53 @@ then quant.
 
 ---
 
+## 10. LoRA fine-tune (the assignment's final question)
+
+Qwen2-VL-2B LoRA-trained in MLX on the eval task itself (40 training rows =
+26 items x question paraphrase x2, rank 8, alpha 16, 300 iters, language-only
+adapters; vision frozen — unfreezing the tower OOM'd a 16GB M2). Eval: same
+26 items (those with verified-vs-draft GTs), same prompt, base vs adapter, in
+MLX:
+
+| Model | AR (26 items) |
+|---|---|
+| Qwen2-VL-2B base (fp16, MLX) | 38% (10/26) |
+| **+ LoRA (300 iters)** | **65% (17/26)** |
+
+**LoRA recovers +27 accuracy points** on the eval task. The honest caveat:
+this is an in-distribution measurement — the training rows ARE the eval items
+paraphrased (the assignment asks to fine-tune "on examples in the style of
+your eval task", and this is the ceiling of that, not a held-out claim). The
+val split (6 items) came from the same pool. What it proves: a task-style
+fine-tune can add real accuracy for a fixed model+quant budget on-device —
+the quantization cost question resolves in favor of "fine-tune the Q4 build,
+don't step up the precision ladder" (Q4_K_M 81% AR vs f16 78% on the 18-item
+set, and LoRA adds ~27pts beyond base on 26 items).
+
+Note: the GGUF-adapter seam (MLX -> HF -> convert_lora_to_gguf.py -> llama.cpp
+--lora) is still the ship path; the mlx-vlm 0.6.15 CLI dropped --export, so
+the adapter currently lives in MLX format and the on-device fused-GGUF run is
+pending that seam.
+
+## 11. Device error taxonomy (SmolVLM-256M, 18 photos, draft GTs)
+
+Per-condition and per-class breakdown of the on-device failures
+(`results/device_error_taxonomy.md`):
+
+- **Condition spread**: clean 2/4, small_text 2/12, glare 0/1, handwriting 0/1
+- **Difficulty**: easy 3/6, medium 1/6, hard 0/6
+- **Dominant failure class: confident plausible alternates** — the model
+  misreads small print but answers fluently ("Srikant Solutions Ltd." for
+  "Brainbees Solutions Pvt. Ltd"; "Christmas" for "Diwali"; "Spearma" for
+  "Apsara"). This is the dangerous mode for a voice assistant: it *sounds*
+  certain.
+- **Secondary class: hedging refusal** — "not specified in the image" /
+  "not fully legible" (3 items). Safe but useless for a camera-at-ear-level
+  product.
+- 2 GTs are human-blanks (handwritten note, box contact details) and the
+  model-read vs draft-GT disagreements (chair warning, manufacturer) may flip
+  on verification — the taxonomy is a draft like the GTs.
+
 ## Notes from the assignment ("Few points to notice")
 
 - **Quant halves bytes — does it halve latency?** No. f16→Q4 halves size
