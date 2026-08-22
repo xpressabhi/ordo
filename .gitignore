@@ -17,3 +17,8 @@ lora/adapters/
 lora/merged/
 lora/hf-merged/
 lora/data/
+bench/ios/QwenBench/model_data/
+bench/build-apple/
+eval/photos_small/
+eval/draft_items.json
+bench/mac/bench_vlm
