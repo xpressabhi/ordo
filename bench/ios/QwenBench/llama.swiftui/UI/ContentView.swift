@@ -116,6 +116,12 @@ struct ContentView: View {
                         for _ in 0..<240 { if engine.isLoaded { break }; try? await Task.sleep(nanoseconds: 500_000_000) }
                         engine.runSoak(minutes: 5)
                     }
+                } else if args.contains("autorun-500") {
+                    Task { await engine.autoRunWithModel("500M") }
+                } else if args.contains("autorun-512") || args.contains("autorun-1024") {
+                    Task { await engine.autoRun() }
+                } else if args.contains("autorun-multiturn") {
+                    Task { await engine.autoRunMultiturn() }
                 } else if args.contains("-autorun") || args.contains("autorun") {
                     Task { await engine.autoRun() }
                 }

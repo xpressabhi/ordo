@@ -332,6 +332,15 @@ actor MtmdContext {
                     if r != 0 { lastDebug += " | encode_chunk r=\(r) chunk=\(i) | mtmd_logs: " + fetchMtmdLogs(); throw MtmdError.decodeFailed(r) }
                     encodeSum += Int64((DispatchTime.now().uptimeNanoseconds - t0) / 1_000_000)
                     embd = mtmd_get_output_embd(v)
+                    if let embd, Int(nTok) * Int(nEmbdInp) > 0, Int(nTok) * Int(nEmbdInp) < 20_000_000 {
+                        var arr = cachedImageEmbds[imagePath] ?? []
+                        var nt = cachedImageNTokens[imagePath] ?? []
+                        while arr.count <= imgIdx { arr.append([]); nt.append(0) }
+                        arr[imgIdx] = Array(UnsafeBufferPointer(start: embd, count: Int(nTok) * Int(nEmbdInp)))
+                        nt[imgIdx] = nTok
+                        cachedImageEmbds[imagePath] = arr
+                        cachedImageNTokens[imagePath] = nt
+                    }
                 }
                 imgIdx += 1
                 if embd == nil { lastDebug += " | no_embd chunk=\(i)"; throw MtmdError.decodeFailed(-1) }

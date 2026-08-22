@@ -26,7 +26,10 @@ class BenchmarkEngine: ObservableObject {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
     private var evalJSONURL: URL {
-        Bundle.main.url(forResource: "eval", withExtension: "json", subdirectory: "eval") ??
+        let args = ProcessInfo.processInfo.arguments
+        let name = args.contains("autorun-512") ? "eval_512"
+            : args.contains("autorun-1024") ? "eval_1024" : "eval"
+        return Bundle.main.url(forResource: name, withExtension: "json", subdirectory: "eval") ??
             documentsDir.appendingPathComponent("eval.json")
     }
 
@@ -73,14 +76,20 @@ class BenchmarkEngine: ObservableObject {
     func evalItemsForUI() -> [[String: Any]] { loadEvalItems() }
 
     // ---- load ----------------------------------------------------------------
-    func findModelFiles() -> (model: String, mmproj: String)? {
+    func findModelFiles(prefer: String? = nil) -> (model: String, mmproj: String)? {
         // 1. bundled resources (installed with the app): any model + mmproj pair
         if let res = Bundle.main.resourceURL {
             let md = res.appendingPathComponent("model_data")
             let files = (try? FileManager.default.contentsOfDirectory(at: md, includingPropertiesForKeys: nil)) ?? []
             let gguFs = files.filter { $0.pathExtension == "gguf" }
             let mm = gguFs.first { $0.lastPathComponent.contains("mmproj") }
-            let model = gguFs.first { !$0.lastPathComponent.contains("mmproj") }
+            let model: URL?
+            if let prefer {
+                model = gguFs.first { !$0.lastPathComponent.contains("mmproj") && $0.lastPathComponent.contains(prefer) }
+                    ?? gguFs.first { !$0.lastPathComponent.contains("mmproj") }
+            } else {
+                model = gguFs.first { !$0.lastPathComponent.contains("mmproj") }
+            }
             if let mm, let model { return (model.path, mm.path) }
         }
         // 2. Documents (dropped in via Finder/Files)
@@ -131,6 +140,52 @@ class BenchmarkEngine: ObservableObject {
             logMsg("  dbg: \(res.debug)")
         }
         logMsg("AUTORUN-TEXT DONE")
+    }
+
+    func autoRunWithModel(_ prefer: String) async {
+        UIApplication.shared.isIdleTimerDisabled = true
+        logMsg("AUTORUN-\(prefer) start")
+        guard let (m, mm) = findModelFiles(prefer: prefer) else { logMsg("no \(prefer) model bundled"); return }
+        logMsg("Loading: \(URL(fileURLWithPath: m).lastPathComponent)")
+        let c = MtmdContext()
+        do {
+            try await c.load(modelPath: m, mmprojPath: mm)
+            ctx = c
+            isLoaded = true
+        } catch { logMsg("Load failed: \(error)"); return }
+        runEvalSet()
+        while isRunning { try? await Task.sleep(nanoseconds: 500_000_000) }
+        if let url = exportResults() { logMsg("AUTORUN-\(prefer) results -> \(url.path)") }
+        logMsg("AUTORUN-\(prefer) DONE")
+    }
+
+    func autoRunMultiturn() async {
+        UIApplication.shared.isIdleTimerDisabled = true
+        logMsg("AUTORUN-MULTITURN start")
+        loadModel()
+        for _ in 0..<240 { if isLoaded { break }; try? await Task.sleep(nanoseconds: 500_000_000) }
+        if !isLoaded { logMsg("load failed"); return }
+        guard let data = try? Data(contentsOf: evalJSONURL),
+              let manifest = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let items = manifest["items"] as? [[String: Any]] else {
+            logMsg("eval.json not found"); return
+        }
+        for (idx, item) in items.prefix(6).enumerated() {
+            guard let q = item["question"] as? String, let rel = item["path"] as? String,
+                  let imgURL = photoURL(rel) else { continue }
+            logMsg("[T1 \(idx + 1)/6] \(rel)")
+            if let r1 = await askOnce(imagePath: imgURL.path, prompt: q) {
+                logMsg("  turn1 enc=\(r1.encodeMs)ms ttft=\(r1.ttftMs)ms | \(r1.output.prefix(50))")
+                appendDiag("\(rel) | T1 \(r1.debug)")
+            }
+            let follow = "What color is the main object in the image?"
+            logMsg("[T2 \(idx + 1)/6] \(rel)")
+            if let r2 = await askOnce(imagePath: imgURL.path, prompt: follow) {
+                logMsg("  turn2 enc=\(r2.encodeMs)ms ttft=\(r2.ttftMs)ms | \(r2.output.prefix(50))")
+                appendDiag("\(rel) | T2 \(r2.debug)")
+            }
+        }
+        logMsg("AUTORUN-MULTITURN DONE")
     }
 
     func autoRun() async {

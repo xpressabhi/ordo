@@ -49,14 +49,16 @@ def main():
 
     rows = []
     for it in items:
+        if not it.get("ground_truth"):
+            continue  # NEEDS_HUMAN items have no GT yet
         img_rel = it["path"]  # "photos/x.jpg"
         img_abs = os.path.join(REPO, "eval", img_rel)
-        base = {"image": img_abs, "prompt": it["question"], "answer": it["ground_truth"]}
+        base = {"image": img_abs, "question": it["question"], "answer": it["ground_truth"]}
         rows.append(base)
         for _ in range(args.augment):
             pq = paraphrase(it["question"])
             if pq != it["question"]:
-                rows.append({"image": img_abs, "prompt": pq, "answer": it["ground_truth"]})
+                rows.append({"image": img_abs, "question": pq, "answer": it["ground_truth"]})
 
     random.shuffle(rows)
     n_val = max(1, int(len(rows) * args.val))
