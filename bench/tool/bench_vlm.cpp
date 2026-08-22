@@ -46,8 +46,31 @@ static std::string vec_to_string(const char * s, int32_t n) {
     return std::string(s ? s : "", n > 0 ? n : 0);
 }
 
+static std::string json_escape(const std::string & s) {
+    std::string out;
+    out.reserve(s.size() + 16);
+    for (unsigned char c : s) {
+        switch (c) {
+            case '"':  out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default:
+                if (c < 0x20) {
+                    char buf[8];
+                    snprintf(buf, sizeof(buf), "\\u%04x", c);
+                    out += buf;
+                } else {
+                    out += (char) c;
+                }
+        }
+    }
+    return out;
+}
+
 static void print_json(const char * key, const std::string & val, bool last = false) {
-    printf("  \"%s\": \"%s\"%s\n", key, val.c_str(), last ? "" : ",");
+    printf("  \"%s\": \"%s\"%s\n", key, json_escape(val).c_str(), last ? "" : ",");
 }
 
 static void print_json(const char * key, int64_t val, bool last = false) {
