@@ -2,6 +2,17 @@ import Foundation
 import UIKit
 import llama
 
+// capture mtmd/llama log lines so failures can be shown in the UI
+private let logLock = NSLock()
+private var gMtmdLogs = ""
+private let mtmdLogSink: ggml_log_callback = { _, text, _ in
+    guard let text else { return }
+    let s = String(cString: text)
+    logLock.lock()
+    gMtmdLogs = String((gMtmdLogs + s).suffix(4000))
+    logLock.unlock()
+}
+
 // MtmdContext — vision inference engine wrapping the llama.cpp + MTMD C API.
 // Mirrors bench_vlm.cpp so the per-stage timings are directly comparable:
 //   encode_ms  : vision encoder forward (mtmd batch encode), alone
@@ -30,6 +41,7 @@ struct BenchResult {
     var peakFootprintMB: Int64 = 0
     var thermalState: String = ""
     var batteryLevel: Float = -1
+    var debug: String = ""
 
     func toJSON() -> String {
         let esc = output
@@ -58,6 +70,7 @@ actor MtmdContext {
     private var vocab: OpaquePointer?
     private var sampling: UnsafeMutablePointer<llama_sampler>?
     private var peakFootprint: Int64 = 0
+    private(set) var lastDebug: String = ""
 
     init() {}
 
@@ -86,6 +99,7 @@ actor MtmdContext {
         vp.use_gpu = true
         vp.print_timings = false
         vp.warmup = false
+        mtmd_log_set(mtmdLogSink, nil)
         guard let v = mtmd_init_from_file(mmprojPath, m, vp) else {
             throw MtmdError.mmprojLoadFailed(mmprojPath)
         }
@@ -94,6 +108,7 @@ actor MtmdContext {
         var cp = llama_context_default_params()
         cp.n_ctx = 8192
         cp.n_batch = 2048
+        // FA back to default (AUTO): the only config that saw the image on-device
         cp.no_perf = true
         guard let c = llama_init_from_model(m, cp) else {
             throw MtmdError.contextInitFailed
@@ -121,25 +136,60 @@ actor MtmdContext {
     }
 
     // ---- one inference --------------------------------------------------------
+    private func attachLogs() {
+        logLock.lock(); lastDebug = gMtmdLogs; logLock.unlock()
+    }
+
+    private func fetchMtmdLogs() -> String {
+        logLock.lock(); defer { logLock.unlock() }
+        return String(gMtmdLogs.suffix(1500))
+    }
+
     func runOnce(imagePath: String, prompt: String, nPredict: Int32) throws -> BenchResult {
         guard let m = model, let c = context, let v = vctx, let smpl = sampling else {
             throw MtmdError.modelLoadFailed("not loaded")
         }
+        llama_memory_clear(llama_get_memory(c), true) // fresh sequence per query
         let tStart = DispatchTime.now().uptimeNanoseconds
 
-        // image -> bitmap
+        // image -> bitmap via mtmd's stb_image loader (native path; the earlier
+        // failure was a broken framework merge, not memory pressure)
         let bw = mtmd_helper_bitmap_init_from_file(v, imagePath, false)
-        guard let bitmap = bw.bitmap else {
-            throw MtmdError.imageLoadFailed(imagePath)
+        var bitmap: OpaquePointer?
+        if !imagePath.isEmpty {
+            let bw = mtmd_helper_bitmap_init_from_file(v, imagePath, false)
+            guard let b = bw.bitmap else {
+                throw MtmdError.imageLoadFailed(imagePath + " || stb failed")
+            }
+            bitmap = b
+            let nb = mtmd_bitmap_get_n_bytes(b)
+            if let data = mtmd_bitmap_get_data(b) {
+                var s: UInt64 = 0, s2: UInt64 = 0
+                let stride = max(1, nb / 4096)
+                var cnt = 0
+                var i = 0
+                while i < nb { let v = UInt64(data[i]); s += v; s2 += v*v; cnt += 1; i += stride }
+                if cnt > 0 {
+                    let mean = Double(s) / Double(cnt)
+                    let var_ = Double(s2) / Double(cnt) - mean*mean
+                    lastDebug += " | px_n=\(nb) mean=\(String(format: "%.1f", mean)) var=\(String(format: "%.0f", var_))"
+                }
+            }
         }
-        defer { mtmd_bitmap_free(bitmap) }
+        defer { if let b = bitmap { mtmd_bitmap_free(b) } }
 
         // chat format
         var finalPrompt = prompt
-        if !finalPrompt.contains(String(cString: mtmd_default_marker())) {
+        if !imagePath.isEmpty && !finalPrompt.contains(String(cString: mtmd_default_marker())) {
             finalPrompt = String(cString: mtmd_default_marker()) + finalPrompt
         }
-        var msg = llama_chat_message(role: "user", content: finalPrompt)
+        // role AND content must stay alive across llama_chat_apply_template:
+        // the implicit String->C pointer conversion dies at the end of the
+        // statement and the template reads dangling pointers otherwise.
+        let contentPtr = strdup(finalPrompt)
+        let rolePtr = strdup("user")
+        defer { free(contentPtr); free(rolePtr) }
+        var msg = llama_chat_message(role: rolePtr, content: contentPtr)
         var formatted = ""
         withUnsafeMutablePointer(to: &msg) { mptr in
             let len = llama_chat_apply_template(nil, mptr, 1, true, nil, 0)
@@ -147,6 +197,7 @@ actor MtmdContext {
             llama_chat_apply_template(nil, mptr, 1, true, &buf, Int32(buf.count))
             formatted = String(cString: buf)
         }
+        lastDebug += " | formatted=" + formatted
 
         // tokenize into chunks
         let chunks = mtmd_input_chunks_init()
@@ -159,9 +210,15 @@ actor MtmdContext {
             text.parse_special = true
             var bm: [OpaquePointer?] = [bitmap]
             do {
-                let res = try mtmd_tokenize(v, chunks, &text, &bm, 1)
-                if res != 0 { throw MtmdError.tokenizeFailed(res) }
+                var bm: [OpaquePointer?] = []
+                if let bitmap { bm = [bitmap] }
+                let res = try mtmd_tokenize(v, chunks, &text, &bm, bm.count)
+                if res != 0 {
+                    attachLogs()
+                    throw MtmdError.tokenizeFailed(res)
+                }
             } catch {
+                attachLogs()
                 throw MtmdError.tokenizeFailed(-1)
             }
         }
@@ -170,6 +227,13 @@ actor MtmdContext {
         var prefillSum: Int64 = 0
         var nPast: llama_pos = 0
         let nChunks = mtmd_input_chunks_size(chunks)
+        var chunkDesc = ""
+        for ci in 0..<nChunks {
+            let ck = mtmd_input_chunks_get(chunks, ci)
+            let ct = mtmd_input_chunk_get_type(ck)
+            chunkDesc += "\(ct == MTMD_INPUT_CHUNK_TYPE_TEXT ? "T" : "I")"
+        }
+        lastDebug += " | chunks=\(chunkDesc)"
 
         for i in 0..<nChunks {
             let chunk = mtmd_input_chunks_get(chunks, i)
@@ -178,19 +242,32 @@ actor MtmdContext {
                 let t0 = DispatchTime.now().uptimeNanoseconds
                 var newN = nPast
                 let r = mtmd_helper_eval_chunk_single(v, c, chunk, nPast, 0, 2048, i == nChunks - 1, &newN)
-                if r != 0 { throw MtmdError.decodeFailed(r) }
+                if r != 0 { lastDebug += " | text_chunk_eval r=\(r) chunk=\(i)"; throw MtmdError.decodeFailed(r) }
                 nPast = newN
                 prefillSum += Int64((DispatchTime.now().uptimeNanoseconds - t0) / 1_000_000)
             } else {
                 // encode image chunk (vision encoder pass)
                 let t0 = DispatchTime.now().uptimeNanoseconds
                 let r = mtmd_encode_chunk(v, chunk)
-                if r != 0 { throw MtmdError.decodeFailed(r) }
+                if r != 0 { lastDebug += " | encode_chunk r=\(r) chunk=\(i) | mtmd_logs: " + fetchMtmdLogs(); throw MtmdError.decodeFailed(r) }
                 encodeSum += Int64((DispatchTime.now().uptimeNanoseconds - t0) / 1_000_000)
                 let embd = mtmd_get_output_embd(v)
+                var esum: Double = 0
+                var ecnt = 0
+                if let embd {
+                    for k in 0..<min(4096, Int(nPast) + 1) {
+                        let val = embd[k]
+                        if !val.isNaN { esum += Double(abs(val)); ecnt += 1 }
+                    }
+                }
+                var e16 = ""
+                if let embd {
+                    for k in 0..<16 { e16 += String(format: "%.4f ", embd[k]) }
+                }
+                lastDebug += " | embed_mean_abs=\(esum / Double(max(1, ecnt))) first16=[\(e16)]"
                 var newN = nPast
                 let r2 = mtmd_helper_decode_image_chunk(v, c, chunk, embd, nPast, 0, 2048, &newN, nil, nil)
-                if r2 != 0 { throw MtmdError.decodeFailed(r2) }
+                if r2 != 0 { lastDebug += " | image_chunk_decode r=\(r2) chunk=\(i) n_past=\(nPast)"; throw MtmdError.decodeFailed(r2) }
                 nPast = newN
             }
         }
@@ -203,6 +280,28 @@ actor MtmdContext {
 
         var tok: llama_token = llama_sampler_sample(smpl, c, -1)
         tttfNanos = DispatchTime.now().uptimeNanoseconds
+        var logitStats = "no-logits"
+        if let lp = llama_get_logits(c) {
+            var mx: Float = -1e30
+            var argmax: Int32 = -1
+            let nv = llama_vocab_n_tokens(vocab)
+            for j in 0..<nv {
+                if lp[Int(j)] > mx { mx = lp[Int(j)]; argmax = j }
+            }
+            logitStats = "max=\(mx) argmax=\(argmax) eog_argmax=\(llama_vocab_is_eog(vocab, argmax))"
+            var top: [(Float, Int32)] = []
+            for j in 0..<nv { top.append((lp[Int(j)], Int32(j))) }
+            top.sort { $0.0 > $1.0 }
+            var topStr = ""
+            for (v, t) in top.prefix(5) {
+                var pc = [CChar](repeating: 0, count: 32)
+                let np = llama_token_to_piece(vocab, t, &pc, 32, 0, false)
+                let s = String(decoding: pc.prefix(Int(max(np, 0))).map { UInt8(bitPattern: $0) }, as: UTF8.self)
+                topStr += " [\(v):\(s)]"
+            }
+            logitStats += " top5:" + topStr
+        }
+        lastDebug += " | first_tok=\(tok) eog=\(llama_vocab_is_eog(vocab, tok)) n_past=\(nPast) | " + logitStats
         llama_sampler_accept(smpl, tok)
 
         var piece = [CChar](repeating: 0, count: 64)
@@ -213,7 +312,9 @@ actor MtmdContext {
                 piece = [CChar](repeating: 0, count: Int(-nP))
                 nP = llama_token_to_piece(vocab, tok, &piece, Int32(piece.count), 0, false)
             }
-            output += String(cString: piece)
+            if nP > 0 {
+                output += String(decoding: piece.prefix(Int(nP)).map { UInt8(bitPattern: $0) }, as: UTF8.self)
+            }
             nDec += 1
 
             var one: llama_token = tok
@@ -237,7 +338,8 @@ actor MtmdContext {
             output: output,
             peakFootprintMB: peakFootprint,
             thermalState: thermalStateName(),
-            batteryLevel: UIDevice.current.batteryLevel
+            batteryLevel: UIDevice.current.batteryLevel,
+            debug: lastDebug
         )
         return res
     }
@@ -250,5 +352,44 @@ actor MtmdContext {
         case .critical: return "critical"
         @unknown default: return "unknown"
         }
+    }
+
+    // Decode + downscale an image to RGB bytes for mtmd. stb_image (used by
+    // mtmd_helper_bitmap_init_from_file) mallocs the full decoded buffer
+    // (5712x3213 -> ~55MB) which can fail on-device under memory pressure;
+    // UIKit handles memory properly and we cap the longest edge at 1568px,
+    // which also reduces the number of vision tiles -> faster encode.
+    private func makeBitmap(from path: String) -> OpaquePointer? {
+        lastDebug = "makeBitmap path=\(path)"
+        guard let ui = UIImage(contentsOfFile: path) else { lastDebug += " | UIImage nil"; return nil }
+        guard let cg = ui.cgImage else { lastDebug += " | cgImage nil"; return nil }
+        lastDebug += " | decoded \(cg.width)x\(cg.height)"
+        // Feed the image at native resolution: mtmd/Qwen2-VL tiling handles it
+        // (downscaling here loses small text — the Mac reads the full image).
+        let cw = max(1, Int(ui.size.width.rounded()))
+        let ch = max(1, Int(ui.size.height.rounded()))
+        // iOS bitmap contexts require an alpha channel (kCGImageAlphaNone is
+        // macOS-only) -> draw RGBA, then compact to RGB for mtmd.
+        let bytesPerRow = cw * 4
+        var rgba = [UInt8](repeating: 0, count: ch * bytesPerRow)
+        guard let ctx = CGContext(data: &rgba, width: cw, height: ch,
+                                  bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            lastDebug += " | CGContext nil"
+            return nil
+        }
+        lastDebug += " | scaled \(cw)x\(ch)"
+        // NOTE: CGBitmapContext memory is already top-down; flipping corrupts
+        // the image (verified: flipped render is unreadable, plain is correct).
+        ctx.interpolationQuality = .high
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: CGFloat(cw), height: CGFloat(ch)))
+        var rgb = [UInt8](repeating: 0, count: cw * ch * 3)
+        var src = 0, dst = 0
+        while src < rgba.count {
+            rgb[dst] = rgba[src]; rgb[dst+1] = rgba[src+1]; rgb[dst+2] = rgba[src+2]
+            src += 4; dst += 3
+        }
+        return mtmd_bitmap_init(UInt32(cw), UInt32(ch), rgb)
     }
 }

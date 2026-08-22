@@ -53,6 +53,14 @@ struct ContentView: View {
                 .padding(.horizontal)
             }
             .padding(.vertical)
+            .onAppear {
+                let args = ProcessInfo.processInfo.arguments
+                if args.contains("-autorun-text") || args.contains("autorun-text") {
+                    Task { await engine.autoRunTextOnly() }
+                } else if args.contains("-autorun") || args.contains("autorun") {
+                    Task { await engine.autoRun() }
+                }
+            }
             .navigationBarTitle("QwenBench", displayMode: .inline)
             .navigationBarItems(trailing: Button("Help") { showHelp = true })
             .sheet(isPresented: $showHelp) {
@@ -72,7 +80,7 @@ struct ContentView: View {
             let items = engine.evalItemsForUI()
             if let first = items.first,
                let rel = first["path"] as? String,
-               let imgURL = Bundle.main.url(forResource: (rel as NSString).lastPathComponent, withExtension: nil) {
+               let imgURL = engine.photoURLFor(rel) {
                 let q = (first["question"] as? String) ?? prompt
                 if let res = await engine.askOnce(imagePath: imgURL.path, prompt: q, nPredict: 96) {
                     engine.appendLog("SINGLE: enc=\(res.encodeMs)ms pre=\(res.prefillMs)ms dec=\(res.decodeMs)ms ttft=\(res.ttftMs)ms")

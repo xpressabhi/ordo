@@ -114,6 +114,7 @@ int main(int argc, char ** argv) {
     bool use_chat   = true;
     bool mmproj_gpu = true;
     bool json_out   = false;
+    std::string second_image;
     uint32_t seed   = 0;
     int n_ctx       = 8192;
     int n_batch     = 2048;
@@ -138,6 +139,7 @@ int main(int argc, char ** argv) {
         else if (a == "--seed")      seed = (uint32_t) atoi(need("--seed"));
         else if (a == "--n-ctx")     n_ctx = atoi(need("--n-ctx"));
         else if (a == "--n-batch")   n_batch = atoi(need("--n-batch"));
+        else if (a == "--second-image") second_image = need("--second-image");
         else if (a == "--threads")   n_threads = atoi(need("--threads"));
         else if (a == "-h" || a == "--help") {
             fprintf(stderr, "usage: bench_vlm -m model.gguf -mm mmproj.gguf [--image img] -p prompt [-n toks]\n");

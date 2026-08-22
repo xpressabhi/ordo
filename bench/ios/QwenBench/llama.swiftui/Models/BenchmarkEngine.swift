@@ -21,8 +21,30 @@ class BenchmarkEngine: ObservableObject {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
     private var evalJSONURL: URL {
-        Bundle.main.url(forResource: "eval", withExtension: "json") ??
+        Bundle.main.url(forResource: "eval", withExtension: "json", subdirectory: "eval") ??
             documentsDir.appendingPathComponent("eval.json")
+    }
+
+    func photoURLFor(_ rel: String) -> URL? { photoURL(rel) }
+
+    private func photoURL(_ rel: String) -> URL? {
+        let name = (rel as NSString).lastPathComponent
+        let ext = (name as NSString).pathExtension
+        let base = (name as NSString).deletingPathExtension
+        let dir = (rel as NSString).deletingLastPathComponent  // e.g. "photos_small"
+        return Bundle.main.url(forResource: base, withExtension: ext, subdirectory: "eval/\(dir)")
+            ?? documentsDir.appendingPathComponent(rel)
+    }
+
+    private func appendIncremental(_ line: String) {
+        let url = documentsDir.appendingPathComponent("results.jsonl")
+        if let h = try? FileHandle(forWritingTo: url) {
+            h.seekToEndOfFile()
+            h.write((line + "\n").data(using: .utf8)!)
+            try? h.close()
+        } else {
+            try? (line + "\n").write(to: url, atomically: true, encoding: .utf8)
+        }
     }
 
     private func logMsg(_ s: String) {
@@ -36,6 +58,14 @@ class BenchmarkEngine: ObservableObject {
 
     // ---- load ----------------------------------------------------------------
     func findModelFiles() -> (model: String, mmproj: String)? {
+        // 1. bundled resources (installed with the app)
+        if let m = Bundle.main.url(forResource: "Qwen2-VL-2B-Instruct-Q4_K_M", withExtension: "gguf", subdirectory: "model_data") {
+            let mm = Bundle.main.url(forResource: "mmproj-Qwen2-VL-2B-Instruct-f16", withExtension: "gguf", subdirectory: "model_data")
+                ?? Bundle.main.url(forResource: "mmproj-Qwen2-VL-2B-Instruct-Q4_K_M", withExtension: "gguf", subdirectory: "model_data")
+                ?? Bundle.main.url(forResource: "mmproj-Qwen2-VL-2B-Instruct-Q8_0", withExtension: "gguf", subdirectory: "model_data")
+            if let mm { return (m.path, mm.path) }
+        }
+        // 2. Documents (dropped in via Finder/Files)
         let docs = try? FileManager.default.contentsOfDirectory(at: documentsDir, includingPropertiesForKeys: nil)
         var model: String?
         var mmproj: String?
@@ -67,6 +97,41 @@ class BenchmarkEngine: ObservableObject {
         }
     }
 
+    // ---- autorun (driven from CLI: launch with -autorun) ---------------------
+    func autoRunTextOnly() async {
+        UIApplication.shared.isIdleTimerDisabled = true
+        logMsg("AUTORUN-TEXT start")
+        loadModel()
+        for _ in 0..<240 {
+            if isLoaded { break }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        if !isLoaded { logMsg("load failed"); return }
+        if let res = await askOnce(imagePath: nil, prompt: "What is the capital of France?", nPredict: 32) {
+            logMsg("TEXT-ONLY: enc=\(res.encodeMs)ms pre=\(res.prefillMs)ms dec=\(res.decodeMs)ms n_dec=\(res.nDecodeToks) ttft=\(res.ttftMs)ms")
+            logMsg("  -> \(res.output)")
+            logMsg("  dbg: \(res.debug)")
+        }
+        logMsg("AUTORUN-TEXT DONE")
+    }
+
+    func autoRun() async {
+        UIApplication.shared.isIdleTimerDisabled = true
+        logMsg("AUTORUN start")
+        loadModel()
+        for _ in 0..<240 {
+            if isLoaded { break }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        if !isLoaded { logMsg("AUTORUN: model load failed"); return }
+        runEvalSet()
+        while isRunning { try? await Task.sleep(nanoseconds: 500_000_000) }
+        if let url = exportResults() {
+            logMsg("AUTORUN results -> \(url.path)")
+        }
+        logMsg("AUTORUN DONE")
+    }
+
     // ---- single prompt -------------------------------------------------------
     func askOnce(imagePath: String?, prompt: String, nPredict: Int32 = 96) async -> BenchResult? {
         guard let c = ctx else { logMsg("Not loaded"); return nil }
@@ -77,7 +142,8 @@ class BenchmarkEngine: ObservableObject {
                 return try await c.runOnce(imagePath: "", prompt: prompt, nPredict: nPredict)
             }
         } catch {
-            logMsg("run error: \(error)")
+            let dbg = await c.lastDebug
+            logMsg("run error: \(error) || \(dbg)")
             return nil
         }
     }
@@ -87,6 +153,7 @@ class BenchmarkEngine: ObservableObject {
         guard !isRunning, ctx != nil else { return }
         isRunning = true
         results = []
+        try? FileManager.default.removeItem(at: documentsDir.appendingPathComponent("results.jsonl"))
         Task {
             let t0 = Date()
             logMsg("== Eval set run ==")
@@ -100,12 +167,12 @@ class BenchmarkEngine: ObservableObject {
             for (idx, item) in items.enumerated() {
                 guard let q = item["question"] as? String,
                       let rel = item["path"] as? String else { continue }
-                let imgURL = Bundle.main.url(forResource: (rel as NSString).lastPathComponent, withExtension: nil)
-                    ?? documentsDir.appendingPathComponent(rel)
+                guard let imgURL = photoURL(rel) else { logMsg("photo missing: \(rel)"); continue }
                 logMsg("[\(idx + 1)/\(items.count)] \(rel)")
                 guard let res = await askOnce(imagePath: imgURL.path, prompt: q) else { continue }
                 results.append(res.toJSON())
-                logMsg("  enc=\(res.encodeMs)ms pre=\(res.prefillMs)ms dec=\(res.decodeMs)ms ttft=\(res.ttftMs)ms | \(res.output.prefix(60))")
+                appendIncremental(res.toJSON())
+                logMsg("  enc=\(res.encodeMs)ms pre=\(res.prefillMs)ms dec=\(res.decodeMs)ms ttft=\(res.ttftMs)ms | \(res.output.prefix(60)) | \(res.debug)")
             }
             let dt = Date().timeIntervalSince(t0)
             logMsg("Eval set done in \(String(format: "%.0f", dt))s")
@@ -126,8 +193,7 @@ class BenchmarkEngine: ObservableObject {
             // use the first eval item as the fixed query
             let items = loadEvalItems()
             guard let first = items.first else { logMsg("no eval items"); isRunning = false; return }
-            let imgURL = Bundle.main.url(forResource: (first["path"] as! NSString).lastPathComponent, withExtension: nil)
-                ?? documentsDir.appendingPathComponent(first["path"] as! String)
+            let imgURL = photoURL(first["path"] as! String) ?? documentsDir.appendingPathComponent(first["path"] as! String)
             let q = first["question"] as! String
             var times: [Int64] = []
             for i in 1...iterations {
@@ -163,8 +229,7 @@ class BenchmarkEngine: ObservableObject {
             logMsg("== Thermal soak \(minutes)min ==")
             let items = loadEvalItems()
             guard let first = items.first else { logMsg("no eval items"); isRunning = false; return }
-            let imgURL = Bundle.main.url(forResource: (first["path"] as! NSString).lastPathComponent, withExtension: nil)
-                ?? documentsDir.appendingPathComponent(first["path"] as! String)
+            let imgURL = photoURL(first["path"] as! String) ?? documentsDir.appendingPathComponent(first["path"] as! String)
             let q = first["question"] as! String
             let end = Date().addingTimeInterval(TimeInterval(minutes * 60))
             var sampleCount = 0
