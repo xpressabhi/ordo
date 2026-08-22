@@ -8,6 +8,11 @@ class BenchmarkEngine: ObservableObject {
     @Published var log = ""
     @Published var isRunning = false
     @Published var isLoaded = false
+    // photo flow state
+    @Published var photoState = ""
+    @Published var photoPath: String?
+    @Published var photoEncodeMs: Int64 = 0
+    @Published var lastAnswer = ""
 
     private var ctx: MtmdContext?
     private var modelPath: String?
@@ -143,6 +148,65 @@ class BenchmarkEngine: ObservableObject {
             logMsg("AUTORUN results -> \(url.path)")
         }
         logMsg("AUTORUN DONE")
+    }
+
+    // ---- photo flow: compress -> pre-compute vision -> answer -----------------
+    func compressJPEG(_ image: UIImage, maxDim: CGFloat = 768, maxBytes: Int = 100_000) -> Data? {
+        var img = image
+        let longest = max(img.size.width, img.size.height)
+        if longest > maxDim {
+            let r = maxDim / longest
+            let newSize = CGSize(width: img.size.width * r, height: img.size.height * r)
+            let renderer = UIGraphicsImageRenderer(size: newSize)
+            img = renderer.image { _ in img.draw(in: CGRect(origin: .zero, size: newSize)) }
+        }
+        var q: CGFloat = 0.7
+        while q >= 0.2 {
+            if let d = img.jpegData(compressionQuality: q), d.count <= maxBytes { return d }
+            q -= 0.1
+        }
+        return img.jpegData(compressionQuality: 0.2)
+    }
+
+    func processPhoto(_ image: UIImage) {
+        guard ctx != nil else { logMsg("Load model first"); return }
+        photoState = "compressing"
+        Task {
+            guard let data = compressJPEG(image) else {
+                photoState = "compress failed"; logMsg("compress failed"); return
+            }
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("qbench_shot.jpg")
+            do { try data.write(to: url) } catch { photoState = "write failed"; return }
+            photoPath = url.path
+            logMsg("photo compressed: \(data.count / 1024)KB")
+            photoState = "encoding vision…"
+            guard let c = ctx else { photoState = "model not loaded"; return }
+            do {
+                let r = try await c.prepareImage(imagePath: url.path)
+                photoEncodeMs = r.encodeMs
+                photoState = "ready \(r.nChunks) chunks \(r.encodeMs)ms"
+                logMsg("vision pre-computed: \(r.nChunks) chunks in \(r.encodeMs)ms")
+            } catch {
+                photoState = "encode failed: \(error)"
+                logMsg("encode failed: \(error)")
+            }
+        }
+    }
+
+    func askAboutPhoto(_ prompt: String) {
+        guard let photoPath, ctx != nil else { logMsg("Take a photo first"); return }
+        photoState = "thinking…"
+        Task {
+            let t0 = Date()
+            if let res = await askOnce(imagePath: photoPath, prompt: prompt, nPredict: 96) {
+                let dt = Date().timeIntervalSince(t0)
+                lastAnswer = res.output
+                photoState = "answered in \(String(format: "%.1f", dt))s (enc \(res.encodeMs)ms pre \(res.prefillMs)ms dec \(res.decodeMs)ms ttft \(res.ttftMs)ms)"
+                logMsg("ASK: \(res.output)")
+            } else {
+                photoState = "ask failed"
+            }
+        }
     }
 
     // ---- single prompt -------------------------------------------------------

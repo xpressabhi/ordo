@@ -71,6 +71,10 @@ actor MtmdContext {
     private var sampling: UnsafeMutablePointer<llama_sampler>?
     private var peakFootprint: Int64 = 0
     private(set) var lastDebug: String = ""
+    // pre-computed vision embeddings, keyed by image path
+    private var cachedImageEmbds: [String: [[Float]]] = [:]
+    private var cachedImageNTokens: [String: [Int]] = [:]
+    private var nEmbdInp: Int32 = 2048
 
     init() {}
 
@@ -94,6 +98,7 @@ actor MtmdContext {
         }
         model = m
         vocab = llama_model_get_vocab(m)
+        nEmbdInp = llama_model_n_embd_inp(m)
 
         var vp = mtmd_context_params_default()
         vp.use_gpu = true
@@ -118,6 +123,67 @@ actor MtmdContext {
         let smpl = llama_sampler_chain_init(llama_sampler_chain_default_params())
         llama_sampler_chain_add(smpl, llama_sampler_init_greedy())
         sampling = smpl
+    }
+
+    // ---- pre-compute vision for a photo (while the user types) ---------------
+    // Encodes all image chunks of a minimal prompt and caches the embeddings so
+    // runOnce can skip the vision tower when the same image is asked about.
+    func prepareImage(imagePath: String) async throws -> (encodeMs: Int64, nChunks: Int) {
+        guard let m = model, let v = vctx else { throw MtmdError.modelLoadFailed("not loaded") }
+        let tStart = DispatchTime.now().uptimeNanoseconds
+        let marker = String(cString: mtmd_default_marker())
+        // minimal prompt: same structure runOnce will produce, empty question
+        let finalPrompt = marker
+        let contentPtr = strdup(finalPrompt)
+        let rolePtr = strdup("user")
+        defer { free(contentPtr); free(rolePtr) }
+        var msg = llama_chat_message(role: rolePtr, content: contentPtr)
+        var formatted = ""
+        withUnsafeMutablePointer(to: &msg) { mptr in
+            let len = llama_chat_apply_template(nil, mptr, 1, true, nil, 0)
+            var buf = [CChar](repeating: 0, count: Int(len) + 8)
+            llama_chat_apply_template(nil, mptr, 1, true, &buf, Int32(buf.count))
+            formatted = String(cString: buf)
+        }
+        let bw = mtmd_helper_bitmap_init_from_file(v, imagePath, false)
+        guard let bitmap = bw.bitmap else { throw MtmdError.imageLoadFailed(imagePath + " || stb failed") }
+        defer { mtmd_bitmap_free(bitmap) }
+        let chunks = mtmd_input_chunks_init()
+        defer { mtmd_input_chunks_free(chunks) }
+        var text = mtmd_input_text()
+        try formatted.withCString { fptr in
+            text.text = fptr
+            text.text_len = formatted.utf8.count
+            text.add_special = true
+            text.parse_special = true
+            var bm: [OpaquePointer?] = [bitmap]
+            let res = try mtmd_tokenize(v, chunks, &text, &bm, 1)
+            if res != 0 { throw MtmdError.tokenizeFailed(res) }
+        }
+        var embds: [[Float]] = []
+        var ntoks: [Int] = []
+        let nChunks = mtmd_input_chunks_size(chunks)
+        for i in 0..<nChunks {
+            let ck = mtmd_input_chunks_get(chunks, i)
+            if mtmd_input_chunk_get_type(ck) != MTMD_INPUT_CHUNK_TYPE_IMAGE { continue }
+            let t0 = DispatchTime.now().uptimeNanoseconds
+            let r = mtmd_encode_chunk(v, ck)
+            if r != 0 { throw MtmdError.decodeFailed(r) }
+            let nTok = mtmd_input_chunk_get_n_tokens(ck)
+            if let embd = mtmd_get_output_embd(v) {
+                let count = Int(nTok) * Int(nEmbdInp)
+                if count > 0 && count < 20_000_000 {
+                    embds.append(Array(UnsafeBufferPointer(start: embd, count: count)))
+                    ntoks.append(nTok)
+                }
+            }
+        }
+        guard !embds.isEmpty else { throw MtmdError.decodeFailed(-1) }
+        cachedImageEmbds[imagePath] = embds
+        cachedImageNTokens[imagePath] = ntoks
+        let totalMs = Int64((DispatchTime.now().uptimeNanoseconds - tStart) / 1_000_000)
+        lastDebug += " | prepared \(embds.count) image chunks, \(totalMs)ms"
+        return (totalMs, embds.count)
     }
 
     // ---- footprint ----------------------------------------------------------
@@ -235,6 +301,7 @@ actor MtmdContext {
         }
         lastDebug += " | chunks=\(chunkDesc)"
 
+        var imgIdx = 0
         for i in 0..<nChunks {
             let chunk = mtmd_input_chunks_get(chunks, i)
             let ctype = mtmd_input_chunk_get_type(chunk)
@@ -246,12 +313,28 @@ actor MtmdContext {
                 nPast = newN
                 prefillSum += Int64((DispatchTime.now().uptimeNanoseconds - t0) / 1_000_000)
             } else {
-                // encode image chunk (vision encoder pass)
-                let t0 = DispatchTime.now().uptimeNanoseconds
-                let r = mtmd_encode_chunk(v, chunk)
-                if r != 0 { lastDebug += " | encode_chunk r=\(r) chunk=\(i) | mtmd_logs: " + fetchMtmdLogs(); throw MtmdError.decodeFailed(r) }
-                encodeSum += Int64((DispatchTime.now().uptimeNanoseconds - t0) / 1_000_000)
-                let embd = mtmd_get_output_embd(v)
+                // image chunk: prefer pre-computed embeddings (photo flow)
+                var embd: UnsafeMutablePointer<Float>? = nil
+                var scratch: [Float] = []
+                let nTok = mtmd_input_chunk_get_n_tokens(chunk)
+                if let cached = cachedImageEmbds[imagePath],
+                   let cachedNT = cachedImageNTokens[imagePath],
+                   imgIdx < cached.count,
+                   cachedNT[imgIdx] == nTok,
+                   cached[imgIdx].count == Int(nTok) * Int(nEmbdInp) {
+                    scratch = cached[imgIdx]
+                    scratch.withUnsafeMutableBufferPointer { embd = $0.baseAddress }
+                    lastDebug += " | CACHE_HIT(\(imgIdx))"
+                } else {
+                    // encode image chunk (vision encoder pass)
+                    let t0 = DispatchTime.now().uptimeNanoseconds
+                    let r = mtmd_encode_chunk(v, chunk)
+                    if r != 0 { lastDebug += " | encode_chunk r=\(r) chunk=\(i) | mtmd_logs: " + fetchMtmdLogs(); throw MtmdError.decodeFailed(r) }
+                    encodeSum += Int64((DispatchTime.now().uptimeNanoseconds - t0) / 1_000_000)
+                    embd = mtmd_get_output_embd(v)
+                }
+                imgIdx += 1
+                if embd == nil { lastDebug += " | no_embd chunk=\(i)"; throw MtmdError.decodeFailed(-1) }
                 var esum: Double = 0
                 var ecnt = 0
                 if let embd {

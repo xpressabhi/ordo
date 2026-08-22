@@ -9,6 +9,8 @@ struct ContentView: View {
     @State private var showShare = false
     @State private var shareURL: URL?
     @State private var showHelp = false
+    @State private var showCamera = false
+    @State private var photo: UIImage?
 
     var body: some View {
         NavigationView {
@@ -24,6 +26,50 @@ struct ContentView: View {
                 TextField("Prompt (used for single-shot + eval if no eval.json)", text: $prompt)
                     .textFieldStyle(.roundedBorder)
                     .padding(.horizontal)
+
+                if engine.photoState != "" || photo != nil {
+                    HStack(alignment: .top) {
+                        if let photo {
+                            Image(uiImage: photo)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 72, height: 96)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(engine.photoState.isEmpty ? "preparing…" : engine.photoState)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            if !engine.lastAnswer.isEmpty {
+                                Text(engine.lastAnswer)
+                                    .font(.system(size: 12))
+                                    .lineLimit(4)
+                            }
+                        }
+                        Spacer()
+                        Button("New") {
+                            photo = nil
+                            engine.photoState = ""
+                            engine.lastAnswer = ""
+                            engine.photoPath = nil
+                            showCamera = true
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(engine.isRunning)
+                    }
+                    .padding(.horizontal)
+                }
+
+                HStack {
+                    Button("Camera") { showCamera = true }
+                    Button("Ask") {
+                        let q = prompt.isEmpty ? "What does this say?" : prompt
+                        engine.askAboutPhoto(q)
+                    }
+                    .disabled(engine.photoPath == nil || engine.isRunning)
+                }
+                .buttonStyle(.bordered)
+                .disabled(engine.isRunning)
 
                 HStack {
                     Button(engine.isLoaded ? "Reload model" : "Load model") { engine.loadModel() }
@@ -84,6 +130,12 @@ struct ContentView: View {
                     ShareSheet(items: [u])
                 }
             }
+            .sheet(isPresented: $showCamera) {
+                CameraSheet { img in
+                    photo = img
+                    engine.processPhoto(img)
+                }
+            }
         }
     }
 
@@ -120,6 +172,36 @@ struct ContentView: View {
         case .serious: return "serious"
         case .critical: return "critical"
         @unknown default: return "unknown"
+        }
+    }
+}
+
+struct CameraSheet: UIViewControllerRepresentable {
+    let onCapture: (UIImage) -> Void
+    @Environment(\.dismiss) var dismiss
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: CameraSheet
+        init(_ parent: CameraSheet) { self.parent = parent }
+        func imagePickerController(_ picker: UIImagePickerController,
+                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let img = info[.originalImage] as? UIImage {
+                parent.onCapture(img)
+            }
+            parent.dismiss()
+        }
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
         }
     }
 }

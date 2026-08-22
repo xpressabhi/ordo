@@ -48,6 +48,8 @@
 	<true/>
 	<key>MinimumOSVersion</key>
 	<string>16.0</string>
+	<key>NSCameraUsageDescription</key>
+	<string>QwenBench takes photos to answer questions about them on-device</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
