@@ -1,60 +1,61 @@
 # Ordo — take-home: a vision model on a phone
 
-Qwen2-VL-2B on llama.cpp: what a 2B vision-language model costs on real
-hardware, measured across a quantization ladder on the Mac (M2 Pro) and an
-iPhone, on a private eval set of real-world text photos.
+Qwen2-VL-2B on llama.cpp, measured across a quantization ladder on a Mac
+(M2 Pro) and deployed to an iPhone (14 / A15), on a private eval set of 18
+real-world text photos.
 
-**Status: in progress** — see `docs/report.md` for the full write-up (the
-README will be the 3-5 page version once measurements land).
+**Full write-up: `docs/report.md`** — this README is the summary.
+
+## The short version
+
+| | |
+|---|---|
+| Model | Qwen2-VL-2B-Instruct (GGUF, llama.cpp b10549, Metal) |
+| Eval | 18 own photos: product labels, book spines, handwriting, appliance displays (6 easy / 6 medium / 6 hard) |
+| Best config | **Q4_K_M text + Q8_0 mmproj — 1.6GB, 81% answer-recall, 2.3GB peak RAM** |
+| Headline finding | **The vision encoder IS the latency problem**: ~26s of a ~30s TTFT is image encode; a 600-token prompt costs ~0.6s |
+| Second finding | The encoder tolerates quantization almost completely (mmproj f16 vs Q4: identical accuracy); the decoder is where quant bites |
+| iPhone status | App runs, model runs, **text-only works**; vision tower silently broken on A15 (near-constant embeddings — documented, not solved) |
+
+## Reproduce
+
+```
+./model/fetch.sh --all          # weights (ungated)
+./bench/tool/build_bench.sh     # timing harness (needs Xcode toolchain)
+.venv/bin/python bench/mac/run_bench.py --tag results   # ladder
+.venv/bin/python bench/mac/report.py results/results_<tag>.csv
+.venv/bin/python bench/mac/decompose.py                  # TTFT attribution
+```
 
 ## Layout
 
 ```
-model/fetch.sh        download the GGUF weights (not gated)
-model/                quantized ladder: f16 Q8_0 Q4_K_M Q2_K IQ2_XXS + mmproj f16/Q8/Q4
-bench/tool/bench_vlm.cpp   C++ harness: encode / prefill / decode / TTFT as 4 numbers
-bench/mac/            run_bench.py (ladder driver), report.py (metrics+tables),
-                      decompose.py (TTFT attribution)
-bench/ios/QwenBench/  Xcode app: on-device vision benchmark + stress harness
-eval/                 eval.json manifest + capture/validate/second-annotator scripts
-lora/                 MLX LoRA fine-tune pipeline (build_dataset/train/export)
-results/              CSVs + tables (generated)
-notes/runtimes_tried.md   what worked / broke / had to be patched
+model/           quantization ladder: f16 Q8 Q4 Q2_K IQ2_XXS + mmproj f16/Q8/Q4
+bench/tool/      bench_vlm.cpp (encode/prefill/decode/TTFT + RSS), test_multi, ocr.swift
+bench/mac/       run_bench.py, report.py, decompose.py
+bench/ios/       QwenBench Xcode app (on-device harness)
+eval/            eval.json manifest (DRAFT ground truths) + capture/validate scripts
+lora/            MLX LoRA pipeline (dataset builder / trainer / exporter)
+results/         ladder_full.csv (270 runs), ttft_decompose.csv
+docs/report.md   the full report (findings, failure analysis, recommendation)
 ```
 
-## Reproduce (Mac part)
+## Status
 
-```
-./model/fetch.sh --all
-./bench/tool/build_bench.sh
-.venv/bin/python bench/mac/run_bench.py --tag results
-.venv/bin/python bench/mac/report.py results/results_<tag>.csv
-```
+- [x] Part 1 — runtime, weights, ladder produced (f16/Q8/Q4/Q2/IQ2 + mmproj f16/Q8/Q4)
+- [x] Part 2 — eval set (18 photos, DRAFT answers — **verify `eval/eval.json`**)
+- [x] Part 3 — full 270-run ladder on Mac + failure analysis (results/ladder_full.csv)
+- [x] TTFT decomposition (image vs prompt)
+- [ ] Part 4 — stress/thermal/battery on iPhone: **blocked by the on-device vision bug**
+- [ ] LoRA fine-tune: pipeline ready, not run (blocked on manifest verification)
+- [ ] Human verification of the 18 ground truths
 
-## Eval set
+## The on-device vision bug (what failed)
 
-Own photos only (25-40), real-world text: menus, labels, signs, handwriting,
-receipts, medicine, book spines, whiteboard, appliance displays. Built via
-`eval/scripts/capture_wizard.py`; checked with `validate_eval.py`;
-inter-annotator agreement via `second_annotator.py`.
-
-## Metric
-
-Answer Recall (headline — does the prediction contain the ground-truth
-answer?), plus exact-match and word-F1 as strict/secondary checks. See
-`eval/scripts/metrics.py` for the reasoning.
-
-## Headline findings so far (Mac, M2 Pro)
-
-- The vision encoder dominates TTFT: ~4.5s encode vs ~1s prefill vs ~0.2s
-  decode at Q4 on a 1200x900 image. A 600-token prompt adds only ~0.6s.
-- Encoding is ~7.6x slower with the mmproj on CPU (34s vs 4.5s) — GPU matters.
-- Quantizing the text model speeds decode ~1.8x (f16 43 tok/s -> Q4 79 tok/s);
-  encode is barely affected by quantization (bandwidth-bound on the image).
-
-## Phone part (pending)
-
-- Build XCFramework (`build-xcframework.sh ios-sim ios-device`)
-- Open `bench/ios/QwenBench`, set your Apple ID team, deploy, copy the two
-  GGUFs into the app's Documents via Finder, run eval/stress/soak, export
-  results.json.
+On the iPhone (A15), the vision tower emits near-constant embeddings
+(values ≈ {-1.79, 1.0}); the model generates confidently but hallucinates
+("The Netherlands" for a puzzle-label photo). Survived: 3 framework builds
+(2 hand-merged, 1 official xcframework), mmproj Q8/Q4/f16, FA on/off,
+KV/batch sizes, image sizes, GPU/CPU decode. Same llama.cpp + weights work on
+the M2. Text-only inference on the phone works. Full repro in
+`docs/report.md` §8.
