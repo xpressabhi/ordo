@@ -48,8 +48,10 @@ docs/report.md   the full report (findings, failure analysis, recommendation)
 - [x] TTFT decomposition (image vs prompt)
 - [x] Part 4 — 20-query stress (fall-off 13ms), 5-min thermal soak (nominal→serious, TTFT +16%), memory flat 354-362MB. Battery not measurable (API -1.0; 0.0% drain over 6 min by manual readout)
 - [x] On-device eval with SmolVLM-256M — TTFT 805ms median, AR 39%, 18/18 answered (results/device_eval_smolvlm_18.jsonl)
-- [ ] LoRA fine-tune: pipeline ready, not run (next step once manifest is verified; valid on Mac)
-- [ ] Human verification of the 18 ground truths (shifts all AR numbers)
+- [x] LoRA fine-tune — AR 38% -> 65% (+27pts) on the eval task (MLX, 300 iters)
+- [x] On-device resolution sweep (512/768/1024) + size ladder (256M/500M/Qwen2-VL-2B)
+- [x] Speed levers: Q4 mmproj + n_batch 4096 + short-answer (wall -68%, RSS -28%)
+- [ ] Human verification of the 26 ground truths in eval/eval.json (the one remaining task; shifts all AR numbers)
 
 ## The on-device vision bug (what failed — and the workaround that works)
 
