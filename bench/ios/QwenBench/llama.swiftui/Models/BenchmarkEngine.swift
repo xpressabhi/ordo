@@ -148,6 +148,51 @@ class BenchmarkEngine: ObservableObject {
         logMsg("AUTORUN-TEXT DONE")
     }
 
+    func autoRunQwenFast() async {
+        UIApplication.shared.isIdleTimerDisabled = true
+        logMsg("AUTORUN-QWEN-FAST start")
+        guard let (m, mm) = findModelFiles(prefer: "Qwen2-VL-2B-Instruct-Q4_K_M") else {
+            logMsg("no Qwen2-VL Q4 bundle"); return
+        }
+        logMsg("Loading: \(URL(fileURLWithPath: m).lastPathComponent) + \(URL(fileURLWithPath: mm).lastPathComponent)")
+        let c = MtmdContext()
+        do {
+            try await c.load(modelPath: m, mmprojPath: mm)
+            ctx = c
+            isLoaded = true
+        } catch { logMsg("Load failed: \(error)"); return }
+        guard !isRunning else { return }
+        isRunning = true
+        results = []
+        try? FileManager.default.removeItem(at: documentsDir.appendingPathComponent("results.jsonl"))
+        try? FileManager.default.removeItem(at: documentsDir.appendingPathComponent("diag.txt"))
+        Task {
+            let t0 = Date()
+            logMsg("== Qwen-fast eval run (Q4 mmproj, n_batch 4096, short answers) ==")
+            guard let data = try? Data(contentsOf: evalJSONURL),
+                  let manifest = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let items = manifest["items"] as? [[String: Any]] else {
+                logMsg("eval.json not found or invalid"); isRunning = false; return
+            }
+            for (idx, item) in items.enumerated() {
+                guard let q = item["question"] as? String, let rel = item["path"] as? String,
+                      let imgURL = photoURL(rel) else { continue }
+                let shortQ = "Answer in one short phrase. " + q
+                logMsg("[\(idx + 1)/\(items.count)] \(rel)")
+                guard let res = await askOnce(imagePath: imgURL.path, prompt: shortQ, nPredict: 24) else { continue }
+                results.append(res.toJSON())
+                appendIncremental(res.toJSON())
+                appendDiag("\(rel) | \(res.debug)")
+                logMsg("  enc=\(res.encodeMs)ms pre=\(res.prefillMs)ms dec=\(res.decodeMs)ms ttft=\(res.ttftMs)ms n_dec=\(res.nDecodeToks) | \(res.output.prefix(50))")
+            }
+            let dt = Date().timeIntervalSince(t0)
+            logMsg("Eval done in \(String(format: "%.0f", dt))s")
+            isRunning = false
+            if let url = exportResults() { logMsg("results -> \(url.path)") }
+            logMsg("AUTORUN-QWEN-FAST DONE")
+        }
+    }
+
     func autoRunWithModel(_ prefer: String) async {
         UIApplication.shared.isIdleTimerDisabled = true
         logMsg("AUTORUN-\(prefer) start")

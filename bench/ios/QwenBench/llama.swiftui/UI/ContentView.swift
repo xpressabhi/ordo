@@ -116,6 +116,8 @@ struct ContentView: View {
                         for _ in 0..<240 { if engine.isLoaded { break }; try? await Task.sleep(nanoseconds: 500_000_000) }
                         engine.runSoak(minutes: 5)
                     }
+                } else if args.contains("autorun-qwen-fast") {
+                    Task { await engine.autoRunQwenFast() }
                 } else if args.contains("autorun-qwen") {
                     Task { await engine.autoRunWithModel("Qwen2-VL") }
                 } else if args.contains("autorun-500") {

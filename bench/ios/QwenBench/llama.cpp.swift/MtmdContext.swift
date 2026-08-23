@@ -112,7 +112,7 @@ actor MtmdContext {
 
         var cp = llama_context_default_params()
         cp.n_ctx = 8192
-        cp.n_batch = 2048
+        cp.n_batch = 4096
         // FA back to default (AUTO): the only config that saw the image on-device
         cp.no_perf = true
         guard let c = llama_init_from_model(m, cp) else {
@@ -308,7 +308,7 @@ actor MtmdContext {
             if ctype == MTMD_INPUT_CHUNK_TYPE_TEXT {
                 let t0 = DispatchTime.now().uptimeNanoseconds
                 var newN = nPast
-                let r = mtmd_helper_eval_chunk_single(v, c, chunk, nPast, 0, 2048, i == nChunks - 1, &newN)
+                let r = mtmd_helper_eval_chunk_single(v, c, chunk, nPast, 0, 4096, i == nChunks - 1, &newN)
                 if r != 0 { lastDebug += " | text_chunk_eval r=\(r) chunk=\(i)"; throw MtmdError.decodeFailed(r) }
                 nPast = newN
                 prefillSum += Int64((DispatchTime.now().uptimeNanoseconds - t0) / 1_000_000)
@@ -365,7 +365,7 @@ actor MtmdContext {
                     lastDebug += " | embed_mean_abs=\(esum / Double(max(1, ecnt))) dim1536_mean=\(String(format: "%.4f", m2)) std=\(String(format: "%.4f", sqrt(v2 / Double(max(1, n2))))) spread=[\(spread)]"
                 }
                 var newN = nPast
-                let r2 = mtmd_helper_decode_image_chunk(v, c, chunk, embd, nPast, 0, 2048, &newN, nil, nil)
+                let r2 = mtmd_helper_decode_image_chunk(v, c, chunk, embd, nPast, 0, 4096, &newN, nil, nil)
                 if r2 != 0 { lastDebug += " | image_chunk_decode r=\(r2) chunk=\(i) n_past=\(nPast)"; throw MtmdError.decodeFailed(r2) }
                 nPast = newN
             }
