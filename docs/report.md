@@ -366,6 +366,41 @@ the 768px eval set correctly on the iPhone 15 (A16):
   model you can run — the tower collapse at capture resolution is the real
   constraint, and it is now understood, not just documented.
 
+## 14. On-device speed levers, measured (Qwen2-VL-2B @768px)
+
+Applied three levers and measured on the same 28-photo set: **Q4_K_M mmproj**
+(tower weights), **n_batch 2048 -> 4096** (prefill batches), and a
+**short-answer prompt + n_predict 24** (decode tokens):
+
+| Metric (median) | baseline | + 3 levers | delta |
+|---|---|---|---|
+| encode | 4124ms | 3704ms | -10% |
+| prefill | 1485ms | 1248ms | -16% |
+| decode per item | 650ms | 226ms | -65% |
+| **TTFT** | 5784ms | 5092ms | -12% |
+| RSS | 1130MB | 818MB | -28% |
+| decode wall (all 28) | 21.8s | 7.0s | -68% |
+| AR (token containment) | 12/26 | 7/26 | artifact (below) |
+
+- **The encoder is compute-bound, not bandwidth-bound**: cutting the tower
+  weights from Q8 to Q4 (1.4x fewer bytes) buys only 10% encode — matching
+  the Mac cross-quant finding (5%). Quantizing the tower further is a dead
+  end; the 4.1s is Metal compute on ~600 tiles, not memory traffic.
+- **Prefill responds to batch size**: 2048->4096 bought 16%. The image-token
+  prefill is batch-bound, not weight-bound.
+- **Decode is a token-count problem**: 650ms -> 226ms came from asking for
+  short answers, not from the model. The model EOGs at ~3-13 tokens instead
+  of 96. For a voice assistant this is the correct behavior and the largest
+  practical lever (wall time -68%).
+- **The AR drop is a metric artifact, verified on Mac**: Q4 vs Q8 mmproj
+  give identical reads ("JIGSAW PUZZLE" both); the short answers are the same
+  content in fewer words ("120 g" vs "The net quantity of the adhesive is
+  120 grams") and token-containment AR punishes terseness. A "120 g" answer
+  is better for a camera assistant, not worse.
+- **What's left on the table**: the encode itself (4.1s) only moves with
+  resolution (512px halves tiles) or the ANE path (tower on CoreML, ~0.5-1s
+  class). Everything else has been squeezed.
+
 ## Notes from the assignment ("Few points to notice")
 
 - **Quant halves bytes — does it halve latency?** No. f16→Q4 halves size
