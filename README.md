@@ -29,6 +29,62 @@ This README is the summary; the visual guide explains the architecture, user flo
 .venv/bin/python bench/mac/decompose.py                  # TTFT attribution
 ```
 
+## Test on your iPhone (step by step)
+
+The iOS app is `bench/ios/QwenBench/` (bundle `com.ordo.qwenbench`). Models
+are bundled, so no downloads are needed on the phone.
+
+**0 · One-time phone setup (iOS 16+)**
+1. Connect the iPhone to the Mac with a cable.
+2. **Enable Developer Mode**: `Settings → Privacy & Security → Developer Mode → On` — the phone reboots. (Required to run apps signed outside the App Store.)
+3. **Trust your certificate** (needed after the first install): `Settings → General → VPN & Device Management → <your Apple ID> → Trust`.
+4. Get the device UDID: `xcrun devicectl list devices` (or Finder → the phone's info panel).
+
+**1 · Build (free Apple ID signing)**
+```bash
+cd bench/ios/QwenBench
+xcodebuild -project llama.swiftui.xcodeproj -scheme llama.swiftui \
+  -destination "id=<UDID>" -configuration Release -allowProvisioningUpdates build
+```
+Signing team: set `DEVELOPMENT_TEAM` to your Apple ID team in
+`project.pbxproj` if it isn't yours. Free accounts: provisioning is
+automatic, apps expire after **7 days** (rebuild + reinstall to refresh).
+
+**2 · Install & launch**
+```bash
+APP=$(find ~/Library/Developer/Xcode/DerivedData -name "llama.swiftui.app" -path "*Release-iphoneos*" | head -1)
+xcrun devicectl device install app --device "<UDID>" "$APP"
+xcrun devicectl device process launch --device "<UDID>" com.ordo.qwenbench
+```
+> The phone must be **unlocked** for install/launch. Reinstall before each
+> autorun run — launching a running app just foregrounds it (args ignored).
+
+**3 · Automated test runs (headless)**
+| Launch arg | What it runs |
+|---|---|
+| `autorun` | 28-photo eval set (768px) |
+| `autorun-512` / `autorun-1024` | resolution sweep variants |
+| `autorun-500` | SmolVLM-500M eval |
+| `autorun-qwen` | Qwen2-VL-2B eval (Q8 mmproj) |
+| `autorun-qwen-fast` | Qwen + Q4 mmproj, batch 4096, short answers |
+| `autorun-multiturn` | 6 photos × 2 turns (KV reuse) |
+| `autorun-stress` | 20 sequential queries |
+| `autorun-soak` | 5-min continuous thermal soak |
+| `autorun-text` | text-only smoke test |
+
+**4 · Pull results off the phone**
+```bash
+xcrun devicectl device copy from --device "<UDID>" \
+  --source Documents/results.jsonl --destination results/device_run.jsonl \
+  --domain-type appDataContainer --domain-identifier com.ordo.qwenbench
+```
+`Documents/diag.txt` has the per-item debug (embedding stats, cache hits).
+
+**5 · The photo flow (manual)**
+Tap `Load model` → `Camera` → snap a photo (auto-compressed to <100KB,
+vision pre-computed while you type) → type a question → `Ask` — follow-ups
+on the same photo answer in ~200ms (cached embeddings).
+
 ## Layout
 
 ```

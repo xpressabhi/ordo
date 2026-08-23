@@ -86,6 +86,11 @@ Reproduce:
 .venv/bin/python bench/mac/report.py results/results_<tag>.csv
 ```
 
+**On-device reproduction** (install + autorun + pull results): step-by-step
+guide in the README, section "Test on your iPhone" — includes enabling
+Developer Mode, free-Apple-ID signing (7-day expiry), the autorun arg table,
+and the devicectl pull commands.
+
 ---
 
 ## 4. Results — Mac (M2 Pro), 18 photos, means
