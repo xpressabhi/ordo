@@ -22,3 +22,4 @@ bench/build-apple/
 eval/photos_small/
 eval/draft_items.json
 bench/mac/bench_vlm
+bench/ios/QwenBench/llama.swiftui/Resources/model_data/
