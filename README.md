@@ -4,7 +4,9 @@ Qwen2-VL-2B on llama.cpp, measured across a quantization ladder on a Mac
 (M2 Pro) and deployed to an iPhone (15 / A16 Bionic), on a private eval set of 18
 real-world text photos.
 
-**Full write-up: `docs/report.md`** — this README is the summary.
+**Live on GitHub Pages: https://xpressabhi.github.io/ordo/** · **Visual guide: [`docs/index.html`](docs/index.html)** · **Full write-up: [`docs/report.md`](docs/report.md)**
+
+This README is the summary; the visual guide explains the architecture, user flows, task flow and every acronym in one page.
 
 ## The short version
 
