@@ -1,0 +1,357 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - heading "Ordo Take-Home — a Vision Model on a Phone" [level=1] [ref=e4]
+    - generic [ref=e5]: "One page to understand the whole repo: what was built, how it flows, and what every acronym means."
+    - generic [ref=e6]:
+      - generic [ref=e7]: Qwen2-VL-2B
+      - generic [ref=e8]: SmolVLM-256M / 500M
+      - generic [ref=e9]: llama.cpp b10549 · Metal
+      - generic [ref=e10]: iPhone 15 (A16) · Mac M2 Pro
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - generic [ref=e13]: "28"
+      - generic [ref=e14]: eval photos (own)
+    - generic [ref=e15]:
+      - generic [ref=e16]: "270"
+      - generic [ref=e17]: ladder runs
+    - generic [ref=e18]:
+      - generic [ref=e19]: 46%
+      - generic [ref=e20]: best on-device AR (Qwen @768)
+    - generic [ref=e21]:
+      - generic [ref=e22]: +27pts
+      - generic [ref=e23]: LoRA accuracy gain
+    - generic [ref=e24]:
+      - generic [ref=e25]: 200ms
+      - generic [ref=e26]: multi-turn TTFT (cached)
+    - generic [ref=e27]:
+      - generic [ref=e28]: 11.9MB
+      - generic [ref=e29]: git repo size
+  - heading "1 · Architecture" [level=2] [ref=e30]
+  - paragraph [ref=e31]:
+    - text: Two measurement surfaces share one manifest (
+    - code [ref=e32]: eval/eval.json
+    - text: ) and one scoring script (
+    - code [ref=e33]: eval/scripts/metrics.py
+    - text: ). The Mac runs the heavy ladder; the iPhone app is both the production target and a second measurement surface.
+  - generic [ref=e35]:
+    - generic [ref=e36]:
+      - generic [ref=e37]: Mac — M2 Pro (measurement & training)
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - generic [ref=e40]: eval/
+          - generic [ref=e41]: 28 photos → photos_tiny/ (≤100KB)eval.json (questions + GTs)
+        - generic [ref=e42]: →
+        - generic [ref=e43]:
+          - generic [ref=e44]: bench/tool/bench_vlm.cpp
+          - generic [ref=e45]: llama.cpp harness · encode / prefill /decode / TTFT per stage + RSS
+        - generic [ref=e46]: →
+        - generic [ref=e47]:
+          - generic [ref=e48]: bench/mac/run_bench.py
+          - text: "ladder driver: 15 configs × 28 photos"
+        - generic [ref=e49]: →
+        - generic [ref=e50]:
+          - generic [ref=e51]: results/ladder_full.csv
+          - text: 270 rows of per-stage timings
+        - generic [ref=e52]: →
+        - generic [ref=e53]:
+          - generic [ref=e54]: bench/mac/report.py
+          - text: AR / EM / F1 scoring
+        - generic [ref=e55]: →
+        - generic [ref=e56]:
+          - generic [ref=e57]: docs/report.md
+          - text: the deliverable (14 sections)
+      - generic [ref=e58]:
+        - generic [ref=e59]:
+          - generic [ref=e60]: model/
+          - generic [ref=e61]: "Qwen2-VL-2B: f16·Q8·Q4·Q2·IQ2 + mmproj f16/Q8/Q4SmolVLM-256M·500M Q8 + mmproj"
+        - generic [ref=e62]: →
+        - generic [ref=e63]:
+          - generic [ref=e64]: lora/ (MLX)
+          - generic [ref=e65]: build_dataset.py → run_lora.py (300 iters)eval_lora_mlx.py (base vs adapter)
+        - generic [ref=e66]: →
+        - generic [ref=e67]:
+          - generic [ref=e68]: lora/adapters/
+          - text: rank-8 LoRA weights (37MB)
+    - generic [ref=e69]:
+      - generic [ref=e70]: iPhone 15 — A16 (the actual product)
+      - generic [ref=e71]:
+        - generic [ref=e72]:
+          - generic [ref=e73]: QwenBench app
+          - text: bundle com.ordo.qwenbench
+        - generic [ref=e74]: →
+        - generic [ref=e75]:
+          - generic [ref=e76]: ContentView.swift
+          - text: UI · camera · autorun dispatch
+        - generic [ref=e77]: →
+        - generic [ref=e78]:
+          - generic [ref=e79]: BenchmarkEngine.swift
+          - text: eval · stress · soak · photo flow
+        - generic [ref=e80]: →
+        - generic [ref=e81]:
+          - generic [ref=e82]: MtmdContext.swift
+          - generic [ref=e83]: llama.cpp MTMD bindings · vision cache ·prepareImage (pre-compute) · runOnce
+        - generic [ref=e84]: →
+        - generic [ref=e85]:
+          - generic [ref=e86]: llama.framework
+          - text: static Metal build (b10549)
+        - generic [ref=e87]: →
+        - generic [ref=e88]:
+          - generic [ref=e89]: GPU (Metal)
+          - text: encode + prefill + decode
+      - generic [ref=e90]:
+        - generic [ref=e91]:
+          - generic [ref=e92]: model_data/
+          - generic [ref=e93]: 6 GGUFs bundled:SmolVLM-256M·500M, Qwen2-VL-2B Q4, mmprojs
+        - generic [ref=e94]: →
+        - generic [ref=e95]:
+          - generic [ref=e96]: Resources/eval/
+          - text: eval.json + 512/1024 variants + photos
+        - generic [ref=e97]: →
+        - generic [ref=e98]:
+          - generic [ref=e99]: Documents/
+          - text: results.jsonl · diag.txt (pulled via devicectl)
+    - generic [ref=e100]:
+      - generic [ref=e101]: ⇅
+      - generic [ref=e102]:
+        - generic [ref=e103]: same weights, same llama.cpp code
+        - text: numbers transfer Mac ↔ phone
+      - generic [ref=e104]: ⇅
+  - generic [ref=e105]: "Key insight baked into this design: the vision encoder is separately measurable (encode_ms) from prefill and decode. That one decision — timing the three stages apart — is what made the whole analysis possible (the encoder is 87% of TTFT on Mac, and its A16 failure mode was found by inspecting its embedding outputs)."
+  - heading "2 · User flow (in the app)" [level=2] [ref=e106]
+  - heading "2a · The photo flow — \"look at what you're looking at\"" [level=3] [ref=e107]
+  - generic [ref=e109]:
+    - generic [ref=e110]:
+      - generic [ref=e111]:
+        - generic [ref=e112]: "1"
+        - text: Tap
+        - generic [ref=e113]: Camera
+        - generic [ref=e114]: UIImagePickerController
+      - generic [ref=e115]: →
+      - generic [ref=e116]:
+        - generic [ref=e117]: "2"
+        - generic [ref=e118]: Auto-compress
+        - generic [ref=e119]: ≤768px · quality sweeptarget <100KB JPEG
+      - generic [ref=e120]: →
+      - generic [ref=e121]:
+        - generic [ref=e122]: "3"
+        - generic [ref=e123]: Pre-compute vision
+        - generic [ref=e124]: prepareImage() runs thetower while you type
+      - generic [ref=e125]: →
+      - generic [ref=e126]:
+        - generic [ref=e127]: "4"
+        - text: Type a question →
+        - generic [ref=e128]: Ask
+        - generic [ref=e129]: answers use cached embeddings→ turn-2 TTFT ≈ 200ms
+      - generic [ref=e130]: →
+      - generic [ref=e131]:
+        - generic [ref=e132]: "5"
+        - generic [ref=e133]: Answer + timing
+        - generic [ref=e134]: enc / pre / dec / TTFT shownunder the thumbnail
+    - generic [ref=e135]: ask again about the same photo → enc=0ms, CACHE_HIT on all 3 image chunks
+  - heading "2b · The test flows (buttons, kept as-is so anyone can re-run)" [level=3] [ref=e137]
+  - generic [ref=e139]:
+    - generic [ref=e140]:
+      - generic [ref=e141]:
+        - generic [ref=e142]: ①
+        - generic [ref=e143]: Load model
+        - generic [ref=e144]: picks model + mmproj frommodel_data/
+      - generic [ref=e145]:
+        - generic [ref=e146]: ②
+        - generic [ref=e147]: Eval set
+        - generic [ref=e148]: 28 photos · question each→ results.jsonl
+      - generic [ref=e149]:
+        - generic [ref=e150]: ③
+        - generic [ref=e151]: Stress 20x
+        - generic [ref=e152]: 20 sequential queries→ TTFT/thermal/mem per query
+      - generic [ref=e153]:
+        - generic [ref=e154]: ④
+        - generic [ref=e155]: Soak 10min
+        - generic [ref=e156]: continuous inference→ thermal phases
+      - generic [ref=e157]:
+        - generic [ref=e158]: ⑤
+        - generic [ref=e159]: Export
+        - generic [ref=e160]: shares results file
+    - generic [ref=e162]:
+      - generic [ref=e163]: CLI
+      - generic [ref=e164]: autorun·512·1024·500·qwen·qwen-fast·multiturn
+      - generic [ref=e165]: launch args drive headless runs —each re-install forces a fresh launch
+  - heading "3 · Task flow — how the assignment maps to the repo" [level=2] [ref=e166]
+  - generic [ref=e169]:
+    - generic [ref=e170]:
+      - generic [ref=e171]: P1
+      - generic [ref=e172]: Model on a phone
+      - generic [ref=e173]: llama.cpp b10549 · Metalstatic framework build→ model/fetch.sh
+    - generic [ref=e174]: →
+    - generic [ref=e175]:
+      - generic [ref=e176]: P2
+      - generic [ref=e177]: Trustworthy eval set
+      - generic [ref=e178]: 28 own photos · difficulty/conditiontags · scripts/capture_wizard.pydraft_manifest · second_annotator
+    - generic [ref=e179]: →
+    - generic [ref=e180]:
+      - generic [ref=e181]: P3
+      - generic [ref=e182]: Quantization ladder
+      - generic [ref=e183]: 5 text × 3 vision quants = 270 runs→ where it breaks · encoder vs decoder
+    - generic [ref=e184]: →
+    - generic [ref=e185]:
+      - generic [ref=e186]: P4
+      - generic [ref=e187]: Under stress
+      - generic [ref=e188]: 20 queries · thermals · memory→ results/device_stress_*
+    - generic [ref=e189]: →
+    - generic [ref=e190]:
+      - generic [ref=e191]: P5
+      - generic [ref=e192]: LoRA fine-tune
+      - generic [ref=e193]: MLX · 300 iters on eval-style data→ AR 38% → 65%
+    - generic [ref=e194]: →
+    - generic [ref=e195]:
+      - generic [ref=e196]: ✓
+      - generic [ref=e197]: Report
+      - generic [ref=e198]: docs/report.md — 14 sectionsincl. "what surprised me"
+  - generic [ref=e199]:
+    - text: Repo layout cheatsheet —
+    - code [ref=e200]: model/
+    - text: weights ·
+    - code [ref=e201]: bench/tool/
+    - text: harness ·
+    - code [ref=e202]: bench/mac/
+    - text: ladder + scoring ·
+    - code [ref=e203]: bench/ios/QwenBench/
+    - text: the app ·
+    - code [ref=e204]: eval/
+    - text: manifest + photos + integrity scripts ·
+    - code [ref=e205]: lora/
+    - text: fine-tuning ·
+    - code [ref=e206]: results/
+    - text: all raw measurements ·
+    - code [ref=e207]: docs/report.md
+    - text: the deliverable.
+  - heading "4 · Glossary" [level=2] [ref=e208]
+  - table [ref=e209]:
+    - rowgroup [ref=e210]:
+      - row [ref=e211]:
+        - columnheader "Term" [ref=e212]
+        - columnheader "Meaning" [ref=e213]
+        - columnheader "Example from this project" [ref=e214]
+      - row [ref=e215]:
+        - cell "VLM" [ref=e216]
+        - cell "Vision-Language Model — reads images + text, answers in text." [ref=e217]
+        - cell [ref=e218]:
+          - code [ref=e219]: Qwen2-VL-2B
+          - text: ","
+          - code [ref=e220]: SmolVLM-256M
+      - row [ref=e221]:
+        - cell "GGUF" [ref=e222]
+        - cell "llama.cpp's single-file weight format (model + tokenizer, memory-mappable)." [ref=e223]
+        - cell [ref=e224]:
+          - code [ref=e225]: SmolVLM-256M-Instruct-Q8_0.gguf
+          - text: — 167MB
+      - row [ref=e226]:
+        - cell "mmproj" [ref=e227]
+        - cell "Multimodal projector — the vision-encoder weights file, loaded alongside the text GGUF." [ref=e228]
+        - cell [ref=e229]:
+          - code [ref=e230]: mmproj-Qwen2-VL-2B-Instruct-Q8_0.gguf
+          - text: — 677MB
+      - row [ref=e231]:
+        - cell "f16 / Q8_0 / Q4_K_M / Q2_K / IQ2_XXS" [ref=e232]
+        - 'cell "Weight precisions: 16-bit float, 8-bit, 4-bit (K-quants), 2-bit; IQ = imatrix-calibrated 2-bit." [ref=e233]'
+        - 'cell "Q4_K_M: 940MB, 81% AR · IQ2_XXS: 487MB, 53% — the cliff" [ref=e234]'
+      - row [ref=e235]:
+        - cell "imatrix" [ref=e236]
+        - cell "Importance matrix — calibration data used to choose what a 2-bit quant should preserve." [ref=e237]
+        - cell [ref=e238]:
+          - text: computed over wikitext-2 for
+          - code [ref=e239]: IQ2_XXS
+      - row [ref=e240]:
+        - cell "AR" [ref=e241]
+        - cell "Answer Recall — fraction of ground-truth tokens present in the prediction. The chosen accuracy metric." [ref=e242]
+        - cell "GT \"JIGSAW PUZZLE\" ⊆ \"The label says Jigsaw Puzzle\" → 1.0" [ref=e243]
+      - row [ref=e244]:
+        - cell "EM" [ref=e245]
+        - cell "Exact Match — prediction must equal the GT verbatim. Too strict here (0%)." [ref=e246]
+        - cell "reported as the \"strict check\"" [ref=e247]
+      - row [ref=e248]:
+        - cell "TTFT" [ref=e249]
+        - cell "Time To First Token — what the user feels before the answer starts." [ref=e250]
+        - 'cell "Qwen @768: 5.8s · SmolVLM @512: 611ms" [ref=e251]'
+      - row [ref=e252]:
+        - cell "encode / prefill / decode" [ref=e253]
+        - 'cell "The three measurable stages: vision tower pass · prompt through decoder · one-token-at-a-time generation." [ref=e254]'
+        - 'cell "Qwen: 4124ms / 1485ms / 650ms" [ref=e255]'
+      - row [ref=e256]:
+        - cell "tok/s" [ref=e257]
+        - cell "Tokens per second — throughput for prefill/decode." [ref=e258]
+        - cell "Q4_K_M decode ~78 tok/s on Mac" [ref=e259]
+      - row [ref=e260]:
+        - cell "RSS" [ref=e261]
+        - cell "Resident Set Size — peak physical RAM used during inference." [ref=e262]
+        - cell "Qwen 1.13GB vs SmolVLM 355MB" [ref=e263]
+      - row [ref=e264]:
+        - cell "KV cache" [ref=e265]
+        - cell "Key-Value cache — stored attention state; grows with tokens, reused across turns." [ref=e266]
+        - cell "n_ctx 8192 · turn-2 reuses KV" [ref=e267]
+      - row [ref=e268]:
+        - cell "n_batch / n_ctx" [ref=e269]
+        - cell "Tokens per batch (throughput knob) / context window size." [ref=e270]
+        - cell "2048→4096 bought prefill −16%" [ref=e271]
+      - row [ref=e272]:
+        - cell "Metal" [ref=e273]
+        - cell "Apple's GPU API — where all inference actually runs (not CPU, not NPU)." [ref=e274]
+        - cell "\"GPU via Metal, yes; NPU, no\"" [ref=e275]
+      - row [ref=e276]:
+        - cell "ANE / NPU" [ref=e277]
+        - cell "Apple Neural Engine / Neural Processing Unit — the phone's AI chip; llama.cpp doesn't use it." [ref=e278]
+        - cell "the CoreML/ANE path is the untapped 4x encode lever" [ref=e279]
+      - row [ref=e280]:
+        - cell "MTMD" [ref=e281]
+        - cell "llama.cpp's Multi-Modal (mtmd) inference API — tokenizes images + text into chunks." [ref=e282]
+        - cell [ref=e283]:
+          - code [ref=e284]: chunks=TITITIT
+          - text: = 3 image chunks per SmolVLM photo
+      - row [ref=e285]:
+        - cell "LoRA" [ref=e286]
+        - cell "Low-Rank Adaptation — tiny trainable matrices (rank 8) added to frozen weights; fine-tunes for ~1% of full-training cost." [ref=e287]
+        - cell "300 iters on eval-style data → AR 38% → 65%" [ref=e288]
+      - row [ref=e289]:
+        - cell "MLX" [ref=e290]
+        - cell "Apple's ML framework for Apple Silicon — used for LoRA training on the Mac." [ref=e291]
+        - cell [ref=e292]:
+          - code [ref=e293]: lora/mlx-model/
+          - text: (fp16 conversion)
+      - row [ref=e294]:
+        - cell "FA" [ref=e295]
+        - cell "Flash Attention — memory-efficient attention kernel." [ref=e296]
+        - cell "on/off tried; no fix for the A16 tower bug" [ref=e297]
+      - row [ref=e298]:
+        - cell "EOG" [ref=e299]
+        - cell "End Of Generation token — the model's \"I'm done\". Instant EOG = silent failure." [ref=e300]
+        - cell [ref=e301]:
+          - text: un-
+          - code [ref=e302]: strdup
+          - text: "'d role → confident instant EOG"
+      - row [ref=e303]:
+        - cell "CACHE_HIT" [ref=e304]
+        - cell "Debug marker — vision embeddings reused from the pre-computed cache instead of re-encoding." [ref=e305]
+        - 'cell "multi-turn: enc=0ms, TTFT 200ms" [ref=e306]'
+      - row [ref=e307]:
+        - cell "GT (DRAFT)" [ref=e308]
+        - cell "Ground Truth — the expected answer per photo. DRAFT = model-written, awaiting human verification." [ref=e309]
+        - cell "the one remaining task before submission" [ref=e310]
+      - row [ref=e311]:
+        - cell "HEIC" [ref=e312]
+        - cell "Apple's photo format — the raw captures were converted to JPEG for eval." [ref=e313]
+        - cell [ref=e314]:
+          - code [ref=e315]: sips -s format jpeg
+      - row [ref=e316]:
+        - cell "JSONL / CSV" [ref=e317]
+        - cell "Line-delimited JSON / comma-separated values — the raw results formats." [ref=e318]
+        - cell [ref=e319]:
+          - code [ref=e320]: results/device_eval_smolvlm_18.jsonl
+      - row [ref=e321]:
+        - cell "devicectl" [ref=e322]
+        - cell "Apple's CLI for installing/launching/pulling files on a physical device." [ref=e323]
+        - cell [ref=e324]:
+          - code [ref=e325]: device copy from … Documents/results.jsonl
+  - generic [ref=e326]:
+    - text: Reading the results table — every row in
+    - code [ref=e327]: docs/report.md
+    - text: "§4 is: text-quant × vision-quant, model size, AR, then the three stages (encode/prefill/decode) + TTFT + peak RSS. The story the numbers tell: encode dominates TTFT, the encoder tolerates quantization, and decode is a token-count problem."
+  - contentinfo [ref=e328]: Ordo take-home · docs/report.md is the formal deliverable · generated 2026-08-23
