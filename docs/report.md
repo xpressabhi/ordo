@@ -160,12 +160,17 @@ section.
    plus quantization regularization. Not a claim about Q4 > f16 in general,
    but a reminder that the "ladder" isn't monotonic at this scale.
 4. **The on-device vision tower silently outputs near-constant embeddings on
-   the A16** — the model loads, encodes, prefills, and generates — but the
-   image content is unreadable (constant dims ≈ {-1.79, 1.0}); the model
-   hallucinates confidently ("The Netherlands"). This survived three framework
-   builds, three mmproj quants, FA on/off, KV/batch changes, and CPU/GPU
-   splits. It is a genuine llama.cpp/A16 issue, not a config error — the same
-   llama.cpp code works on the M2 with identical weights.
+   the A16 with full-res images** — the model loads, encodes, prefills, and
+   generates — but the image content is unreadable (constant dims ≈
+   {-1.79, 1.0}); the model hallucinates confidently ("The Netherlands"). This
+   survived three framework builds, three mmproj quants, FA on/off, KV/batch
+   changes, and CPU/GPU splits. **And then: at 768px (eval-sized images), the
+   exact same tower reads correctly** — 46% AR, healthy embedding stds. The
+   bug is resolution/tile-grid dependent: the A16 Metal kernels collapse on
+   large tile grids (full-res 3213x5712 photos tile into dozens of 28px
+   patches) and are fine on small ones. The "A16 can't run Qwen2-VL's tower"
+   conclusion was wrong in its generality — it is "A16 can't run it at
+   capture resolution".
 5. **The Swift interop trap** — an un-`strdup`'d `role` field silently turned
    the chat template into an empty prompt; the model EOG'd instantly. The
    failure mode was a *confident* `<|im_end|>`, not an error.
@@ -179,15 +184,14 @@ section.
 
 ## 8. What I cut / couldn't get working
 
-- **Qwen2-VL-2B vision on the A16**: broken. The vision tower emits
-  near-constant embeddings (values clamped to ~{-1.79, 1.0}); the model
-  generates confidently but hallucinates ("The Netherlands" for a puzzle
-  label). Survived three framework builds, three mmproj quants (Q8/Q4/F16),
-  FA on/off, KV/batch sizes, image sizes, GPU/CPU splits — pixel input
-  verified correct (mean 79.7, var 4796). **Same llama.cpp + weights work on
-  the M2.** The breakthrough: **SmolVLM-256M's vision works perfectly on the
-  same device** (below) — the bug is specific to Qwen2-VL's 2D-mrope vision
-  tower kernels on Apple A16-class Metal, not llama.cpp or our code.
+- **Qwen2-VL-2B vision on the A16 at full resolution**: broken. The vision
+  tower emits near-constant embeddings (values clamped to ~{-1.79, 1.0});
+  the model generates confidently but hallucinates ("The Netherlands" for a
+  puzzle label). Survived three framework builds, three mmproj quants
+  (Q8/Q4/F16), FA on/off, KV/batch sizes, image sizes, GPU/CPU splits —
+  pixel input verified correct (mean 79.7, var 4796). **But at 768px (eval
+  resolution) the same tower reads correctly** — the collapse is tile-grid
+  size dependent, not architectural (see §13).
 - **CPU vision encode on the phone**: hangs (>10 min for one photo) — not a
   usable fallback.
 - **The 18-photo manifest ground truths are DRAFT** — accuracy numbers are
@@ -334,6 +338,33 @@ draft GTs (26 with GTs).
   effectively free. The pre-compute pattern (encode on photo capture, not on
   question) is the single biggest latency lever for a conversational camera
   product.
+
+## 13. Qwen2-VL-2B at eval resolution on-device (the resolution fix)
+
+The user's hypothesis: maybe small images work with Qwen2-VL-2B's tower even
+though full-res ones collapse. **Confirmed.** The same Qwen2-VL-2B
+Q4_K_M x Q8_0 (1.6GB) that produced constant embeddings at 3213x5712 reads
+the 768px eval set correctly on the iPhone 15 (A16):
+
+| Model (all @768px, 26 GTs) | AR | Encode med | TTFT med | RSS | Size |
+|---|---|---|---|---|---|
+| Qwen2-VL-2B Q4_K_M | **46%** | 4124ms | 5784ms | 1130MB | 1.6GB |
+| SmolVLM-500M Q8 | 23% | 784ms | 965ms | 436MB | 436MB |
+| SmolVLM-256M Q8 | 15% (4/26) | 500ms | 611ms | 355MB | 167MB |
+
+(256M's 768px 18-item run scored 39% — the 8 new items are harder.)
+
+- **2x the accuracy of the best SmolVLM** on the same set, same images,
+  same questions, draft GTs. Real reads: "JIGSAW PUZZLE", "No child should
+  sit on the..." (closer to GT than SmolVLM), "HABIT MOTIVATION".
+- **Cost**: 4.1s encode + 1.5s prefill + 0.65s decode = 5.8s TTFT, 1.13GB
+  RSS. With the pre-compute pattern (encode at capture), the conversational
+  turn-1 TTFT drops to ~2.1s — at the edge of the 2s budget with ASR/TTS.
+- **Product read**: SmolVLM-256M is the always-on camera companion (sub-
+  second TTFT, 370MB); Qwen2-VL-2B at 768px is the "when accuracy matters"
+  mode (46% AR, 5.8s, still interactive). The resolution axis decides which
+  model you can run — the tower collapse at capture resolution is the real
+  constraint, and it is now understood, not just documented.
 
 ## Notes from the assignment ("Few points to notice")
 

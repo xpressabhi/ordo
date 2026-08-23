@@ -15,7 +15,7 @@ real-world text photos.
 | Best config | **Q4_K_M text + Q8_0 mmproj — 1.6GB, 81% answer-recall, 2.3GB peak RAM** |
 | Headline finding | **The vision encoder IS the latency problem**: ~26s of a ~30s TTFT is image encode; a 600-token prompt costs ~0.6s |
 | Second finding | The encoder tolerates quantization almost completely (mmproj f16 vs Q4: identical accuracy); the decoder is where quant bites |
-| iPhone status | **SmolVLM-256M runs the full eval on-device**: 18 photos in ~110s, TTFT median 805ms, AR 39% (draft GT), RSS ~370MB. Qwen2-VL-2B's vision tower is broken on A16 Metal (documented in §8) |
+| iPhone status | **Both models run the eval on-device**: Qwen2-VL-2B @768px → 46% AR, TTFT 5.8s, RSS 1.1GB; SmolVLM-256M → sub-second TTFT, 370MB. The A16 tower collapse is resolution-dependent (full-res broken, 768px fine — §13) |
 
 ## Reproduce
 

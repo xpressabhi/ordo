@@ -82,7 +82,13 @@ class BenchmarkEngine: ObservableObject {
             let md = res.appendingPathComponent("model_data")
             let files = (try? FileManager.default.contentsOfDirectory(at: md, includingPropertiesForKeys: nil)) ?? []
             let gguFs = files.filter { $0.pathExtension == "gguf" }
-            let mm = gguFs.first { $0.lastPathComponent.contains("mmproj") }
+            let mm: URL?
+            if let prefer {
+                mm = gguFs.first { $0.lastPathComponent.contains("mmproj") && $0.lastPathComponent.contains(prefer) }
+                    ?? gguFs.first { $0.lastPathComponent.contains("mmproj") }
+            } else {
+                mm = gguFs.first { $0.lastPathComponent.contains("mmproj") }
+            }
             let model: URL?
             if let prefer {
                 model = gguFs.first { !$0.lastPathComponent.contains("mmproj") && $0.lastPathComponent.contains(prefer) }
