@@ -306,6 +306,35 @@ Per-condition and per-class breakdown of the on-device failures
   model-read vs draft-GT disagreements (chair warning, manufacturer) may flip
   on verification — the taxonomy is a draft like the GTs.
 
+## 12. On-device resolution sweep + size ladder + multi-turn (A16)
+
+All runs on the iPhone 15 (A16), 28-photo set, SmolVLM-256M unless noted,
+draft GTs (26 with GTs).
+
+| Variant | Encode med | TTFT med | AR (26) | RSS |
+|---|---|---|---|---|
+| 512px | 500ms | 611ms | 15% | ~355MB |
+| 768px (18-item run) | 752ms | 935ms | 39% (18) | ~370MB |
+| 1024px | 764ms | 940ms | 23% | ~360MB |
+| **SmolVLM-500M @768px** | 784ms | 965ms | 23% | 436MB |
+
+- **Resolution**: encode plateaus above 768px (500→752→764ms) — SmolVLM's
+  vision tower saturates before 1024. The accuracy knob: 512→1024 buys
+  15%→23% AR. For a camera at ear level, 768px is the sweet spot: 61% of the
+  encode cost of 1024 with the accuracy. 512px is a strong budget option
+  (TTFT 611ms).
+- **Size ladder**: 500M costs +160ms TTFT and +80MB RSS for **zero AR gain**
+  on this set (23% vs 23% at 768) — for this task (text on photos), the
+  extra 2x model buys nothing. The 256M is the shipping model.
+- **Multi-turn (pre-computed vision)**: turn 1 TTFT ~940ms (enc ~770ms);
+  **turn 2 on the same photo: enc=0ms, TTFT ~200ms** — cache hit confirmed
+  for every follow-up (CACHE_HIT on all 3 image chunks). At ~200ms, the
+  conversational budget story changes: with ASR (~300ms) + TTS (~500ms) the
+  model has the whole 2s budget left to itself, and follow-ups are
+  effectively free. The pre-compute pattern (encode on photo capture, not on
+  question) is the single biggest latency lever for a conversational camera
+  product.
+
 ## Notes from the assignment ("Few points to notice")
 
 - **Quant halves bytes — does it halve latency?** No. f16→Q4 halves size
