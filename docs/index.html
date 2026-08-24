@@ -70,6 +70,7 @@
 <header>
   <div style="margin-bottom:14px; font-size:13px">
     <a href="https://github.com/xpressabhi/ordo" style="color:var(--accent); text-decoration:none; margin-right:14px">← README (repo overview)</a>
+    <a href="glossary.html" style="color:var(--accent); text-decoration:none; margin-right:14px">Glossary</a>
     <a href="https://github.com/xpressabhi/ordo/blob/main/docs/report.md" style="color:var(--accent); text-decoration:none">Full report →</a>
   </div>
   <h1>Ordo Take-Home — <span>a Vision Model on a Phone</span></h1>
@@ -214,41 +215,63 @@
 <div class="note"><b>Repo layout cheatsheet</b> — <code>model/</code> weights · <code>bench/tool/</code> harness · <code>bench/mac/</code> ladder + scoring · <code>bench/ios/QwenBench/</code> the app · <code>eval/</code> manifest + photos + integrity scripts · <code>lora/</code> fine-tuning · <code>results/</code> all raw measurements · <code>docs/report.md</code> the deliverable.</div>
 
 <!-- ================= GLOSSARY ================= -->
-<h2>4 · Glossary</h2>
-<table>
-  <tr><th>Term</th><th>Meaning</th><th>Example from this project</th></tr>
-  <tr><td class="term">VLM</td><td>Vision-Language Model — reads images + text, answers in text.</td><td class="ex"><code>Qwen2-VL-2B</code>, <code>SmolVLM-256M</code></td></tr>
-  <tr><td class="term">GGUF</td><td>llama.cpp's single-file weight format (model + tokenizer, memory-mappable).</td><td class="ex"><code>SmolVLM-256M-Instruct-Q8_0.gguf</code> — 167MB</td></tr>
-  <tr><td class="term">mmproj</td><td>Multimodal projector — the vision-encoder weights file, loaded alongside the text GGUF.</td><td class="ex"><code>mmproj-Qwen2-VL-2B-Instruct-Q8_0.gguf</code> — 677MB</td></tr>
-  <tr><td class="term">f16 / Q8_0 / Q4_K_M / Q2_K / IQ2_XXS</td><td>Weight precisions: 16-bit float, 8-bit, 4-bit (K-quants), 2-bit; IQ = imatrix-calibrated 2-bit.</td><td class="ex">Q4_K_M: 940MB, 81% AR · IQ2_XXS: 487MB, 53% — the cliff</td></tr>
-  <tr><td class="term">imatrix</td><td>Importance matrix — calibration data used to choose what a 2-bit quant should preserve.</td><td class="ex">computed over wikitext-2 for <code>IQ2_XXS</code></td></tr>
-  <tr><td class="term">AR</td><td>Answer Recall — fraction of ground-truth <i>tokens</i> present in the prediction. The chosen accuracy metric.</td><td class="ex">GT "JIGSAW PUZZLE" ⊆ "The label says Jigsaw Puzzle" → 1.0</td></tr>
-  <tr><td class="term">EM</td><td>Exact Match — prediction must equal the GT verbatim. Too strict here (0%).</td><td class="ex">reported as the "strict check"</td></tr>
-  <tr><td class="term">TTFT</td><td>Time To First Token — what the user feels before the answer starts.</td><td class="ex">Qwen @768: 5.8s · SmolVLM @512: 611ms</td></tr>
-  <tr><td class="term">encode / prefill / decode</td><td>The three measurable stages: vision tower pass · prompt through decoder · one-token-at-a-time generation.</td><td class="ex">Qwen: 4124ms / 1485ms / 650ms</td></tr>
-  <tr><td class="term">tok/s</td><td>Tokens per second — throughput for prefill/decode.</td><td class="ex">Q4_K_M decode ~78 tok/s on Mac</td></tr>
-  <tr><td class="term">RSS</td><td>Resident Set Size — peak physical RAM used during inference.</td><td class="ex">Qwen 1.13GB vs SmolVLM 355MB</td></tr>
-  <tr><td class="term">KV cache</td><td>Key-Value cache — stored attention state; grows with tokens, reused across turns.</td><td class="ex">n_ctx 8192 · turn-2 reuses KV</td></tr>
-  <tr><td class="term">n_batch / n_ctx</td><td>Tokens per batch (throughput knob) / context window size.</td><td class="ex">2048→4096 bought prefill −16%</td></tr>
-  <tr><td class="term">Metal</td><td>Apple's GPU API — where all inference actually runs (not CPU, not NPU).</td><td class="ex">"GPU via Metal, yes; NPU, no"</td></tr>
-  <tr><td class="term">ANE / NPU</td><td>Apple Neural Engine / Neural Processing Unit — the phone's AI chip; llama.cpp doesn't use it.</td><td class="ex">the CoreML/ANE path is the untapped 4x encode lever</td></tr>
-  <tr><td class="term">MTMD</td><td>llama.cpp's Multi-Modal (mtmd) inference API — tokenizes images + text into chunks.</td><td class="ex"><code>chunks=TITITIT</code> = 3 image chunks per SmolVLM photo</td></tr>
-  <tr><td class="term">LoRA</td><td>Low-Rank Adaptation — tiny trainable matrices (rank 8) added to frozen weights; fine-tunes for ~1% of full-training cost.</td><td class="ex">300 iters on eval-style data → AR 38% → 65%</td></tr>
-  <tr><td class="term">MLX</td><td>Apple's ML framework for Apple Silicon — used for LoRA training on the Mac.</td><td class="ex"><code>lora/mlx-model/</code> (fp16 conversion)</td></tr>
-  <tr><td class="term">FA</td><td>Flash Attention — memory-efficient attention kernel.</td><td class="ex">on/off tried; no fix for the A16 tower bug</td></tr>
-  <tr><td class="term">EOG</td><td>End Of Generation token — the model's "I'm done". Instant EOG = silent failure.</td><td class="ex">un-<code>strdup</code>'d role → confident instant EOG</td></tr>
-  <tr><td class="term">CACHE_HIT</td><td>Debug marker — vision embeddings reused from the pre-computed cache instead of re-encoding.</td><td class="ex">multi-turn: enc=0ms, TTFT 200ms</td></tr>
-  <tr><td class="term">GT (DRAFT)</td><td>Ground Truth — the expected answer per photo. DRAFT = model-written, awaiting human verification.</td><td class="ex">the one remaining task before submission</td></tr>
-  <tr><td class="term">HEIC</td><td>Apple's photo format — the raw captures were converted to JPEG for eval.</td><td class="ex"><code>sips -s format jpeg</code></td></tr>
-  <tr><td class="term">JSONL / CSV</td><td>Line-delimited JSON / comma-separated values — the raw results formats.</td><td class="ex"><code>results/device_eval_smolvlm_18.jsonl</code></td></tr>
-  <tr><td class="term">devicectl</td><td>Apple's CLI for installing/launching/pulling files on a physical device.</td><td class="ex"><code>device copy from … Documents/results.jsonl</code></td></tr>
-</table>
+<h2>4 · LoRA fine-tuning (the assignment's final question)</h2>
+<p>The last part of the assignment: take the quantized model, LoRA fine-tune it
+on examples in the style of the eval task, and check whether fine-tuning
+recovers the accuracy that quantization cost. Answer here: <b>it does</b> — AR
+38% → 65% on the same 26 items (+27 points).</p>
 
-<div class="note"><b>Reading the results table</b> — every row in <code>docs/report.md</code> §4 is: text-quant × vision-quant, model size, AR, then the three stages (encode/prefill/decode) + TTFT + peak RSS. The story the numbers tell: encode dominates TTFT, the encoder tolerates quantization, and decode is a token-count problem.</div>
+<div class="diagram">
+<div class="diagram-inner">
+  <div class="zone mac">
+    <div class="ztitle">Mac — MLX training pipeline</div>
+    <div class="flowrow">
+      <div class="node"><b>eval/eval.json</b><small>28 items · question + GT<br>(skip empty-GT items)</small></div>
+      <span class="arrow">→</span>
+      <div class="node accent"><b>lora/build_dataset.py</b><small>paraphrases questions ×2<br>→ 40 train + 6 val rows</small></div>
+      <span class="arrow">→</span>
+      <div class="node accent"><b>lora/run_lora.py</b><small>mlx-vlm trainer: 300 iters,<br>rank 8, alpha 16, lr 2e-5<br>language LoRA only (vision<br>frozen — tower OOMs)</small></div>
+      <span class="arrow">→</span>
+      <div class="node"><b>lora/adapters/</b><small>rank-8 LoRA weights (37MB)</small></div>
+      <span class="arrow">→</span>
+      <div class="node good"><b>lora/eval_lora_mlx.py</b><small>base vs adapter on the same<br>26 items → AR 38% vs 65%</small></div>
+    </div>
+    <div class="flowrow" style="margin-top:8px">
+      <div class="node"><b>lora/mlx-model/</b><small>Qwen2-VL-2B fp16 MLX conversion<br>(from HF safetensors)</small></div>
+      <span class="arrow">→</span>
+      <div class="node"><b>train + eval</b><small>runs entirely on the M2 Pro (Metal)<br>300 iters ≈ 10 min · eval ≈ 5 min</small></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<h3>Setup process (reproduce)</h3>
+<div class="diagram">
+<div class="diagram-inner">
+  <div class="flowrow">
+    <div class="step"><span class="n">1</span><b>Convert</b><small>mlx_vlm.convert — HF safetensors<br>→ lora/mlx-model/ (fp16, unquantized)</small></div>
+    <span class="arrow">→</span>
+    <div class="step"><span class="n">2</span><b>Build dataset</b><small>lora/build_dataset.py — eval.json<br>→ train.jsonl (40) + val.jsonl (6)<br>paraphrased questions, 768px photos</small></div>
+    <span class="arrow">→</span>
+    <div class="step"><span class="n">3</span><b>Train</b><small>lora/run_lora.py — 300 iters, batch 1,<br>grad-checkpoint, image capped 672px<br>(bigger = Metal OOM on 16GB)</small></div>
+    <span class="arrow">→</span>
+    <div class="step"><span class="n">4</span><b>Eval</b><small>lora/eval_lora_mlx.py both — base vs<br>adapter, same prompt template<br>(apply_chat_template + num_images)</small></div>
+    <span class="arrow">→</span>
+    <div class="step"><span class="n">5</span><b>Report</b><small>results/lora_mlx_base.jsonl +<br>_lora.jsonl → report §10</small></div>
+  </div>
+</div>
+</div>
+
+<div class="note"><b>Gotchas learned the hard way:</b> (a) <code>mlx-vlm 0.6.15</code> CLI dropped <code>--export</code> and <code>--val-dataset</code> — use the Python trainer API; (b) <code>model.eval()</code> breaks generation in 0.6.15 (empty outputs) — don't call it; (c) <code>apply_chat_template(…, num_images=1)</code> is required or the image is silently ignored (text-only hallucinations); (d) unfreezing the vision tower OOMs a 16GB M2 — language-LoRA only; (e) the GGUF-adapter seam for on-device LoRA is still pending (the 0.6.15 export path is gone).</div>
+
+<h2>5 · Glossary</h2>
+<p>Every acronym with its meaning and a real example — now on its own page:
+<a href="glossary.html" style="color:var(--accent)"><b>docs/glossary.html</b></a> (25 terms:
+VLM, GGUF, mmproj, quants, AR, TTFT, KV cache, LoRA, MLX, ANE/NPU, MTMD, CACHE_HIT, …).</p>
 
 <footer>
   Ordo take-home · <a href="https://github.com/xpressabhi/ordo/blob/main/docs/report.md" style="color:var(--accent)">docs/report.md</a> is the formal deliverable ·
-  <a href="https://github.com/xpressabhi/ordo" style="color:var(--accent)">README</a> · <a href="https://xpressabhi.github.io/ordo/" style="color:var(--accent)">GitHub Pages</a> · generated 2026-08-23
+  <a href="https://github.com/xpressabhi/ordo" style="color:var(--accent)">README</a> · <a href="glossary.html" style="color:var(--accent)">Glossary</a> · <a href="https://xpressabhi.github.io/ordo/" style="color:var(--accent)">GitHub Pages</a> · generated 2026-08-23
 </footer>
 
 </div>

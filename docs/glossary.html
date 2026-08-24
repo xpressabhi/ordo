@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ordo Take-Home — Glossary</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1d212b; --line: #2a2f3a;
+    --text: #e8eaf0; --dim: #9aa3b2; --accent: #4da3ff; --accent2: #7ee2a8;
+    --warn: #ffc866;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif; padding: 32px 20px 80px; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 32px; }
+  h1 { font-size: 28px; letter-spacing: -0.5px; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--dim); margin-top: 6px; font-size: 14.5px; }
+  .nav { margin-bottom: 14px; font-size: 13px; }
+  .nav a { color: var(--accent); text-decoration: none; margin: 0 10px; }
+  h2 { font-size: 20px; margin: 40px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 10px; overflow: hidden; }
+  th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--dim); padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 13.5px; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td.term { font-family: var(--mono); color: var(--accent); white-space: nowrap; font-size: 13px; }
+  td.ex { color: var(--dim); font-size: 12.5px; }
+  td.ex code { font-family: var(--mono); font-size: 12px; background: var(--panel2); padding: 1px 5px; border-radius: 4px; color: var(--warn); }
+  td code { font-family: var(--mono); font-size: 12px; background: var(--panel2); padding: 1px 5px; border-radius: 4px; color: var(--accent); }
+  .note { background: var(--panel); border-left: 3px solid var(--warn); padding: 10px 14px; border-radius: 6px; color: var(--dim); margin: 14px 0; font-size: 13.5px; }
+  footer { margin-top: 60px; text-align: center; color: var(--dim); font-size: 12.5px; }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="nav">
+    <a href="index.html">← Guide (architecture &amp; flows)</a>
+    <a href="https://github.com/xpressabhi/ordo">README</a>
+    <a href="https://github.com/xpressabhi/ordo/blob/main/docs/report.md">Full report →</a>
+  </div>
+  <h1>Ordo Take-Home — <span>Glossary</span></h1>
+  <div class="sub">Every acronym used in the repo, with a meaning and a real example from this project.</div>
+</header>
+
+<h2>Acronyms &amp; terms</h2>
+<table>
+  <tr><th>Term</th><th>Meaning</th><th>Example from this project</th></tr>
+  <tr><td class="term">VLM</td><td>Vision-Language Model — reads images + text, answers in text.</td><td class="ex"><code>Qwen2-VL-2B</code>, <code>SmolVLM-256M</code></td></tr>
+  <tr><td class="term">GGUF</td><td>llama.cpp's single-file weight format (model + tokenizer, memory-mappable).</td><td class="ex"><code>SmolVLM-256M-Instruct-Q8_0.gguf</code> — 167MB</td></tr>
+  <tr><td class="term">mmproj</td><td>Multimodal projector — the vision-encoder weights file, loaded alongside the text GGUF.</td><td class="ex"><code>mmproj-Qwen2-VL-2B-Instruct-Q8_0.gguf</code> — 677MB</td></tr>
+  <tr><td class="term">f16 / Q8_0 / Q4_K_M / Q2_K / IQ2_XXS</td><td>Weight precisions: 16-bit float, 8-bit, 4-bit (K-quants), 2-bit; IQ = imatrix-calibrated 2-bit.</td><td class="ex">Q4_K_M: 940MB, 81% AR · IQ2_XXS: 487MB, 53% — the cliff</td></tr>
+  <tr><td class="term">imatrix</td><td>Importance matrix — calibration data used to choose what a 2-bit quant should preserve.</td><td class="ex">computed over wikitext-2 for <code>IQ2_XXS</code></td></tr>
+  <tr><td class="term">AR</td><td>Answer Recall — fraction of ground-truth <i>tokens</i> present in the prediction. The chosen accuracy metric.</td><td class="ex">GT "JIGSAW PUZZLE" ⊆ "The label says Jigsaw Puzzle" → 1.0</td></tr>
+  <tr><td class="term">EM</td><td>Exact Match — prediction must equal the GT verbatim. Too strict here (0%).</td><td class="ex">reported as the "strict check"</td></tr>
+  <tr><td class="term">TTFT</td><td>Time To First Token — what the user feels before the answer starts.</td><td class="ex">Qwen @768: 5.8s · SmolVLM @512: 611ms</td></tr>
+  <tr><td class="term">encode / prefill / decode</td><td>The three measurable stages: vision tower pass · prompt through decoder · one-token-at-a-time generation.</td><td class="ex">Qwen: 4124ms / 1485ms / 650ms</td></tr>
+  <tr><td class="term">tok/s</td><td>Tokens per second — throughput for prefill/decode.</td><td class="ex">Q4_K_M decode ~78 tok/s on Mac</td></tr>
+  <tr><td class="term">RSS</td><td>Resident Set Size — peak physical RAM used during inference.</td><td class="ex">Qwen 1.13GB vs SmolVLM 355MB</td></tr>
+  <tr><td class="term">KV cache</td><td>Key-Value cache — stored attention state; grows with tokens, reused across turns.</td><td class="ex">n_ctx 8192 · turn-2 reuses KV</td></tr>
+  <tr><td class="term">n_batch / n_ctx</td><td>Tokens per batch (throughput knob) / context window size.</td><td class="ex">2048→4096 bought prefill −16%</td></tr>
+  <tr><td class="term">Metal</td><td>Apple's GPU API — where all inference actually runs (not CPU, not NPU).</td><td class="ex">"GPU via Metal, yes; NPU, no"</td></tr>
+  <tr><td class="term">ANE / NPU</td><td>Apple Neural Engine / Neural Processing Unit — the phone's AI chip; llama.cpp doesn't use it.</td><td class="ex">the CoreML/ANE path is the untapped 4x encode lever</td></tr>
+  <tr><td class="term">MTMD</td><td>llama.cpp's Multi-Modal (mtmd) inference API — tokenizes images + text into chunks.</td><td class="ex"><code>chunks=TITITIT</code> = 3 image chunks per SmolVLM photo</td></tr>
+  <tr><td class="term">LoRA</td><td>Low-Rank Adaptation — tiny trainable matrices (rank 8) added to frozen weights; fine-tunes for ~1% of full-training cost.</td><td class="ex">300 iters on eval-style data → AR 38% → 65%</td></tr>
+  <tr><td class="term">MLX</td><td>Apple's ML framework for Apple Silicon — used for LoRA training on the Mac.</td><td class="ex"><code>lora/mlx-model/</code> (fp16 conversion)</td></tr>
+  <tr><td class="term">FA</td><td>Flash Attention — memory-efficient attention kernel.</td><td class="ex">on/off tried; no fix for the A16 tower bug</td></tr>
+  <tr><td class="term">EOG</td><td>End Of Generation token — the model's "I'm done". Instant EOG = silent failure.</td><td class="ex">un-<code>strdup</code>'d role → confident instant EOG</td></tr>
+  <tr><td class="term">CACHE_HIT</td><td>Debug marker — vision embeddings reused from the pre-computed cache instead of re-encoding.</td><td class="ex">multi-turn: enc=0ms, TTFT 200ms</td></tr>
+  <tr><td class="term">GT (DRAFT)</td><td>Ground Truth — the expected answer per photo. DRAFT = model-written, awaiting human verification.</td><td class="ex">the one remaining task before submission</td></tr>
+  <tr><td class="term">HEIC</td><td>Apple's photo format — the raw captures were converted to JPEG for eval.</td><td class="ex"><code>sips -s format jpeg</code></td></tr>
+  <tr><td class="term">JSONL / CSV</td><td>Line-delimited JSON / comma-separated values — the raw results formats.</td><td class="ex"><code>results/device_eval_smolvlm_18.jsonl</code></td></tr>
+  <tr><td class="term">devicectl</td><td>Apple's CLI for installing/launching/pulling files on a physical device.</td><td class="ex"><code>device copy from … Documents/results.jsonl</code></td></tr>
+</table>
+
+<div class="note"><b>Reading the results table</b> — every row in <code>docs/report.md</code> §4 is: text-quant × vision-quant, model size, AR, then the three stages (encode/prefill/decode) + TTFT + peak RSS. The story the numbers tell: encode dominates TTFT, the encoder tolerates quantization, and decode is a token-count problem.</div>
+
+<footer>
+  Ordo take-home · <a href="index.html">Guide</a> · <a href="https://github.com/xpressabhi/ordo/blob/main/docs/report.md">Report</a> · <a href="https://github.com/xpressabhi/ordo">README</a>
+</footer>
+
+</div>
+</body>
+</html>

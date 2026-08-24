@@ -85,6 +85,30 @@ Tap `Load model` → `Camera` → snap a photo (auto-compressed to <100KB,
 vision pre-computed while you type) → type a question → `Ask` — follow-ups
 on the same photo answer in ~200ms (cached embeddings).
 
+## LoRA fine-tune (reproduce)
+
+Answers the assignment's final question ("does fine-tuning recover the
+quantization accuracy cost?") — on this task it does: **AR 38% -> 65%**
+(+27 points, same 26 items, base vs adapter).
+
+```
+# 1. dataset from eval.json (paraphrased questions x2, 768px photos)
+.venv/bin/python lora/build_dataset.py --augment 2 --val 0.15
+
+# 2. train (mlx-vlm 0.6.15: use the Python trainer API — the CLI dropped
+#    --export/--val-dataset; language-LoRA only, vision tower OOMs 16GB)
+.venv/bin/python lora/run_lora.py      # 300 iters, rank 8, alpha 16, ~10 min
+
+# 3. eval base vs adapter on the same 26 items
+.venv/bin/python lora/eval_lora_mlx.py both
+```
+
+Gotchas: `model.eval()` breaks mlx-vlm 0.6.15 generation; images are
+silently ignored unless the prompt goes through
+`apply_chat_template(..., num_images=1)`; training images capped at 672px
+to fit Metal memory. The GGUF-adapter seam (for running the LoRA inside
+llama.cpp on-device) is the remaining ship path.
+
 ## Layout
 
 ```
