@@ -77,26 +77,37 @@ class BenchmarkEngine: ObservableObject {
 
     // ---- load ----------------------------------------------------------------
     func findModelFiles(prefer: String? = nil) -> (model: String, mmproj: String)? {
-        // 1. bundled resources (installed with the app): any model + mmproj pair
+        // 1. bundled resources (installed with the app): pair model + mmproj by family
         if let res = Bundle.main.resourceURL {
             let md = res.appendingPathComponent("model_data")
             let files = (try? FileManager.default.contentsOfDirectory(at: md, includingPropertiesForKeys: nil)) ?? []
             let gguFs = files.filter { $0.pathExtension == "gguf" }
-            let mm: URL?
-            if let prefer {
-                mm = gguFs.first { $0.lastPathComponent.contains("mmproj") && $0.lastPathComponent.contains(prefer) }
-                    ?? gguFs.first { $0.lastPathComponent.contains("mmproj") }
-            } else {
-                mm = gguFs.first { $0.lastPathComponent.contains("mmproj") }
+            let models = gguFs.filter { !$0.lastPathComponent.contains("mmproj") }
+                .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            let mmprojs = gguFs.filter { $0.lastPathComponent.contains("mmproj") }
+                .sorted { $0.lastPathComponent < $1.lastPathComponent }
+
+            func family(of url: URL) -> String {
+                var n = url.lastPathComponent
+                n = n.replacingOccurrences(of: "mmproj-", with: "")
+                if let range = n.range(of: "-Instruct") { n = String(n[..<range.lowerBound]) }
+                return n
             }
-            let model: URL?
-            if let prefer {
-                model = gguFs.first { !$0.lastPathComponent.contains("mmproj") && $0.lastPathComponent.contains(prefer) }
-                    ?? gguFs.first { !$0.lastPathComponent.contains("mmproj") }
-            } else {
-                model = gguFs.first { !$0.lastPathComponent.contains("mmproj") }
+
+            func pair(prefer p: String?) -> (URL, URL)? {
+                let cand = models.filter { p == nil || $0.lastPathComponent.contains(p!) }
+                let cmp = mmprojs.filter { p == nil || $0.lastPathComponent.contains(p!) }
+                for m in cand {
+                    if let mm = cmp.first(where: { family(of: $0) == family(of: m) }) {
+                        return (m, mm)
+                    }
+                }
+                return nil
             }
-            if let mm, let model { return (model.path, mm.path) }
+
+            if let prefer, let hit = pair(prefer: prefer) { return (hit.0.path, hit.1.path) }
+            // no prefer: default to the eval model (256M) if present, else first family
+            if let hit = pair(prefer: "256M") ?? pair(prefer: nil) { return (hit.0.path, hit.1.path) }
         }
         // 2. Documents (dropped in via Finder/Files)
         let docs = try? FileManager.default.contentsOfDirectory(at: documentsDir, includingPropertiesForKeys: nil)
