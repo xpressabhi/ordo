@@ -22,7 +22,8 @@ This README is the summary; the visual guide explains the architecture, user flo
 ## Reproduce
 
 ```
-./model/fetch.sh --all          # weights (ungated)
+./model/fetch.sh --all          # base weights (ungated ggml-org GGUFs, incl. SmolVLM Q8 pairs)
+./lora/fetch_adapters.sh        # trained LoRA adapters from HF (git-ignored locally)
 ./bench/tool/build_bench.sh     # timing harness (needs Xcode toolchain)
 .venv/bin/python bench/mac/run_bench.py --tag results   # ladder
 .venv/bin/python bench/mac/report.py results/results_<tag>.csv
@@ -98,6 +99,13 @@ quantization accuracy cost?") — on this task it does: **AR 38% -> 65%**
 # 2. train (mlx-vlm 0.6.15: use the Python trainer API — the CLI dropped
 #    --export/--val-dataset; language-LoRA only, vision tower OOMs 16GB)
 .venv/bin/python lora/run_lora.py      # 300 iters, rank 8, alpha 16, ~10 min
+
+# 2b. publish / fetch adapters (so clones skip retraining)
+./lora/push_adapters.sh      # needs HF_TOKEN with write permission (one time)
+./lora/fetch_adapters.sh     # fresh clone: downloads adapters.safetensors (35MB)
+# NOTE: adapters/ is git-ignored — after ANY retrain (new data, iters,
+# hyperparams), re-run ./lora/push_adapters.sh so
+# hf:akm85/ordo-qwen2vl-lora stays in sync with what clones fetch.
 
 # 3. eval base vs adapter on the same 26 items
 .venv/bin/python lora/eval_lora_mlx.py both
