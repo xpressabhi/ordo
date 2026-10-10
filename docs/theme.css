@@ -24,7 +24,7 @@
   --accent: #a13a1f;       /* brand: links, current state, marks */
   --accent-bright: #e08a6e;/* accent for use on dark ink surfaces */
   --ok: #45663a;           /* semantic — pass, live, success */
-  --warn: #8a6410;         /* semantic — caution */
+  --warn: #7a5810;         /* semantic — caution */
   --bad: #9c2b1f;          /* semantic — fail, removed, danger */
 
   /* type */
